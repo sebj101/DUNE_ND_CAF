@@ -18,6 +18,7 @@ struct params {
   double trk_muRes, LAr_muRes, ECAL_muRes;
   double em_const, em_sqrtE;
   double michelEff;
+  double CC_trk_length;
 };
 
 // Fill reco variables for muon reconstructed in magnetized tracker
@@ -83,7 +84,7 @@ void recoElectron( CAF &caf, params &par )
   caf.numu_pid = 0.; // always not a muon
 
   // fake efficiency...threshold of 300 MeV, eff rising to 100% by 700 MeV
-  if( rando->Rndm() > (caf.Elep-0.3)*0.0025 ) { // reco as NC
+  if( rando->Rndm() > (caf.Elep-0.3)*2.5 ) { // reco as NC
     caf.Elep_reco = 0.;
     caf.nue_pid = 0.;
     caf.Ev_reco = caf.Elep; // include electron energy in Ev anyway, since it won't show up in reco hadronic energy
@@ -317,13 +318,13 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       caf.numu_pid = 0.;
       caf.Elep_reco = electron_energy*0.001;
       caf.reco_q = 0;
-    } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < 250. || longest_mip_KE/longest_mip > 3.) ) { 
+    } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < par.CC_trk_length || longest_mip_KE/longest_mip > 3.) ) { 
       // reco as NC
       caf.nue_pid = 0.;
       caf.numu_pid = 0.;
       caf.Elep_reco = 0.;
       caf.reco_q = 0;
-    } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > 250. && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
+    } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > par.CC_trk_length && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
       caf.nue_pid = 0.;
       caf.numu_pid = 1.;
       caf.Elep_reco = longest_mip_KE*0.001 + mmu;
@@ -372,8 +373,20 @@ int main( int argc, char const *argv[] )
   std::string outfile;
   std::string edepfile;
   std::string fhicl_filename;
-  bool rhc = false;
-  int seed = 7; // a very random number
+
+  // Make parameter object and set defaults
+  params par;
+  par.fhc = true;
+  par.seed = 7; // a very random number
+  par.run = 1;
+  par.trk_muRes = 0.02; // fractional muon energy resolution of HP GAr TPC
+  par.LAr_muRes = 0.05; // fractional muon energy resolution of muons contained in LAr
+  par.ECAL_muRes = 0.1; // fractional muon energy resolution of muons ending in ECAL
+  par.em_const = 0.03; // EM energy resolution constant term: A + B/sqrt(E) (GeV)
+  par.em_sqrtE = 0.1; // EM energy resolution 1/sqrt(E) term: A + B/sqrt(E) (GeV)
+  par.michelEff = 0.75; // Michel finder efficiency
+  par.CC_trk_length = 250.; // minimum track length for CC in cm
+
   int i = 0;
   while( i < argc ) {
     if( argv[i] == std::string("--edepfile") ) {
@@ -389,35 +402,23 @@ int main( int argc, char const *argv[] )
       fhicl_filename = argv[i+1];
       i += 2;
     } else if( argv[i] == std::string("--seed") ) {
-      seed = atoi(argv[i+1]);
+      par.seed = atoi(argv[i+1]);
       i += 2;
     } else if( argv[i] == std::string("--rhc") ) {
-      rhc = true;
+      par.fhc = false;
       i += 1;
-    } else i += 1;
+    } else i += 1; // look for next thing
   }
 
   printf( "Making CAF from edep-sim tree dump: %s\n", edepfile.c_str() );
   printf( "Searching for GENIE ghep files here: %s\n", ghepdir.c_str() );
-  if( rhc ) printf( "Running antineutrino mode (RHC)\n" );
-  else      printf( "Running neutrino mode (FHC)\n" );
+  if( par.fhc ) printf( "Running neutrino mode (FHC)\n" );
+  else printf( "Running antineutrino mode (RHC)\n" );
   printf( "Output CAF file: %s\n", outfile.c_str() );
 
   CAF caf( outfile );
 
-  // set paramters
-  params par;
-  par.fhc = !rhc;
-  par.seed = seed;
-  par.run = 1;
-  par.trk_muRes = 0.02;
-  par.LAr_muRes = 0.05;
-  par.ECAL_muRes = 0.1;
-  par.em_const = 0.03;
-  par.em_sqrtE = 0.1;
-  par.michelEff = 0.75;
-
-  rando = new TRandom3( seed );
+  rando = new TRandom3( par.seed );
 
   TFile * tf = new TFile( edepfile.c_str() );
   TTree * tree = (TTree*) tf->Get( "tree" );
