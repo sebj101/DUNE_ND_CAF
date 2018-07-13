@@ -14,7 +14,7 @@ const double mmu = 0.1056583745;
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
   bool fhc;
-  int seed, run;
+  int seed, run, subrun, n;
   double trk_muRes, LAr_muRes, ECAL_muRes;
   double em_const, em_sqrtE;
   double michelEff;
@@ -25,7 +25,7 @@ struct params {
 void recoMuonTracker( CAF &caf, params &par )
 {
   // smear momentum by resolution
-  double p = sqrt(caf.Elep*caf.Elep - mmu*mmu);
+  double p = sqrt(caf.LepMomT*caf.LepMomT - mmu*mmu);
   double reco_p = rando->Gaus( p, p*par.trk_muRes );
   caf.Elep_reco = sqrt(reco_p*reco_p + mmu*mmu);
 
@@ -33,8 +33,8 @@ void recoMuonTracker( CAF &caf, params &par )
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
 
   // assume always muon for tracker-matched
-  caf.numu_pid = 1.;
-  caf.nue_pid = 0.;
+  caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+  caf.muon_contained = 0; caf.muon_tracker = 1; caf.muon_ecal = 0; caf.muon_exit = 0;
   caf.Ev_reco = caf.Elep_reco;
 }
 
@@ -42,7 +42,7 @@ void recoMuonTracker( CAF &caf, params &par )
 void recoMuonLAr( CAF &caf, params &par )
 {
   // range-based, smear kinetic energy
-  double ke = caf.Elep - mmu;
+  double ke = caf.LepMomT - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.LAr_muRes );
   caf.Elep_reco = reco_ke + mmu;
 
@@ -55,8 +55,8 @@ void recoMuonLAr( CAF &caf, params &par )
     else caf.reco_q = -1; // no reco Michel
   }
 
-  caf.numu_pid = 1.;
-  caf.nue_pid = 0.;
+  caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+  caf.muon_contained = 1; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
   caf.Ev_reco = caf.Elep_reco;
 }
 
@@ -64,7 +64,7 @@ void recoMuonLAr( CAF &caf, params &par )
 void recoMuonECAL( CAF &caf, params &par )
 {
   // range-based KE
-  double ke = caf.Elep - mmu;
+  double ke = caf.LepMomT - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.ECAL_muRes );
   caf.Elep_reco = reco_ke + mmu;
 
@@ -72,8 +72,8 @@ void recoMuonECAL( CAF &caf, params &par )
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
 
   // assume always muon for ecal-matched
-  caf.numu_pid = 1.;
-  caf.nue_pid = 0.;
+  caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+  caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 1; caf.muon_exit = 0;
   caf.Ev_reco = caf.Elep_reco;
 }
 
@@ -81,16 +81,17 @@ void recoMuonECAL( CAF &caf, params &par )
 void recoElectron( CAF &caf, params &par )
 {
   caf.reco_q = 0; // never know charge
-  caf.numu_pid = 0.; // always not a muon
+  caf.reco_numu = 0;
+  caf.muon_contained = 0; caf.muon_tracker = 1; caf.muon_ecal = 0; caf.muon_exit = 0;
 
   // fake efficiency...threshold of 300 MeV, eff rising to 100% by 700 MeV
-  if( rando->Rndm() > (caf.Elep-0.3)*2.5 ) { // reco as NC
+  if( rando->Rndm() > (caf.LepMomT-0.3)*2.5 ) { // reco as NC
     caf.Elep_reco = 0.;
-    caf.nue_pid = 0.;
-    caf.Ev_reco = caf.Elep; // include electron energy in Ev anyway, since it won't show up in reco hadronic energy
+    caf.reco_nue = 0; caf.reco_nc = 1;
+    caf.Ev_reco = caf.LepMomT; // include electron energy in Ev anyway, since it won't show up in reco hadronic energy
   } else { // reco as CC
-    caf.Elep_reco = rando->Gaus( caf.Elep, caf.Elep*(par.em_const + par.em_sqrtE/sqrt(caf.Elep)) );
-    caf.nue_pid = 1.;
+    caf.Elep_reco = rando->Gaus( caf.LepMomT, caf.LepMomT*(par.em_const + par.em_sqrtE/sqrt(caf.LepMomT)) );
+    caf.reco_nue = 1; caf.reco_nc = 0;
     caf.Ev_reco = caf.Elep_reco;
   }
 
@@ -183,10 +184,11 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
   // Main event loop
   int N = tree->GetEntries();
+  if( par.n > 0 && par.n < N ) N = par.n;
   for( int ii = 0; ii < N; ++ii ) {
 
     tree->GetEntry(ii);
-    if( ii % 1000 == 0 ) printf( "Event %d of %d...\n", ii, N );
+    if( ii % 100 == 0 ) printf( "Event %d of %d...\n", ii, N );
 
     // make sure ghep file matches the current one, otherwise update to the current ghep file
     if( ifileNo != current_file ) {
@@ -212,8 +214,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     if( vtx[2] <   50. || vtx[2] > 350. ) continue;
 
     // configuration variables in CAF file; we don't use mvaresult so just set it to zero
-    caf.mvaresult = 0;
     caf.run = par.run;
+    caf.subrun = par.subrun;
+    caf.event = ii;
     caf.isFD = 0;
     caf.isFHC = par.fhc;
 
@@ -223,30 +226,65 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     genie::Interaction * in = event->Summary();
 
     // Get truth stuff out of GENIE ghep record
-    caf.beamPdg = in->InitState().ProbePdg();
-    caf.neu = in->InitState().ProbePdg();
+    caf.neutrinoPDG = in->InitState().ProbePdg();
     caf.mode = in->ProcInfo().ScatteringTypeId();
     caf.Ev = in->InitState().ProbeE(genie::kRfLab);
     caf.LepPDG = in->FSPrimLeptonPdg();
-    if( abs(caf.LepPDG) == 13 || abs(caf.LepPDG) == 11 ) caf.ccnc = 1;
-    else caf.ccnc = 0;
+    printf( "lepton pdg %d %d\n", caf.LepPDG, lepPdg );
+    caf.isCC = (abs(caf.LepPDG) == 13 || abs(caf.LepPDG) == 11);
     
     TLorentzVector lepP4;
-    TLorentzVector nuP4( 0., 0., caf.Ev, caf.Ev );
-    nuP4.RotateX( -0.1 );
+    TLorentzVector nuP4nuc = *(in->InitState().GetProbeP4(genie::kRfHitNucRest));
+    TLorentzVector nuP4 = *(in->InitState().GetProbeP4(genie::kRfLab));
+
+    caf.nP = 0;
+    caf.nN = 0;
     caf.nipip = 0;
     caf.nipim = 0;
     caf.nipi0 = 0;
+    caf.nikp = 0;
+    caf.nikm = 0;
+    caf.nik0 = 0;
+    caf.niem = 0;
+    caf.niother = 0;
+    caf.nNucleus = 0;
+    caf.nUNKNOWN = 0; // there is an "other" category so this never gets used
     for( int i = 0; i < nFS; ++i ) {
       if( fsPdg[i] == caf.LepPDG ) {
         lepP4.SetPxPyPzE( fsPx[i]*0.001, fsPy[i]*0.001, fsPz[i]*0.001, fsE[i]*0.001 );
-        caf.Elep = fsE[i]*0.001;
+        caf.LepMomT = fsE[i]*0.001;
       }
-      if( fsPdg[i] == 211 ) caf.nipip++;
+      else if( fsPdg[i] == 2212 ) caf.nP++;
+      else if( fsPdg[i] == 2112 ) caf.nN++;
+      else if( fsPdg[i] ==  211 ) caf.nipip++;
       else if( fsPdg[i] == -211 ) caf.nipim++;
-      else if( fsPdg[i] == 111 ) caf.nipi0++;
+      else if( fsPdg[i] ==  111 ) caf.nipi0++;
+      else if( fsPdg[i] ==  321 ) caf.nikp++;
+      else if( fsPdg[i] == -321 ) caf.nikm++;
+      else if( fsPdg[i] == 311 || fsPdg[i] == -311 || fsPdg[i] == 130 || fsPdg[i] == 310 ) caf.nik0++;
+      else if( fsPdg[i] ==   22 ) caf.niem++;
+      else if( fsPdg[i] > 1000000000 ) caf.nNucleus++;
+      else caf.niother++;
     }
-    caf.Q2 = -(nuP4-lepP4).Mag2();
+
+    // true 4-momentum transfer
+    TLorentzVector q = nuP4-lepP4;
+
+    // Q2, W, x, y frequently do not get filled in GENIE Kinematics object, so calculate manually
+    caf.Q2 = -q.Mag2();
+    caf.W = sqrt(0.939*0.939 + 2.*q.E()*0.939 + q.Mag2()); // "GENIE" W, not "Wexp"
+    caf.X = -q.Mag2()/(2*0.939*q.E());
+    caf.Y = q.E()/caf.Ev;
+
+    caf.NuMomX = nuP4.X();
+    caf.NuMomY = nuP4.Y();
+    caf.NuMomZ = nuP4.Z();
+    caf.NuMomT = nuP4.E();
+    caf.LepMomX = lepP4.X();
+    caf.LepMomY = lepP4.Y();
+    caf.LepMomZ = lepP4.Z();
+    caf.LepMomT = lepP4.E();
+    caf.LepNuAngle = nuP4.Angle( lepP4.Vect() );
 
     // Add DUNErw weights to the CAF
     // typedef std::map<paramId_t, std::vector<double>> event_unit_response_t
@@ -302,31 +340,29 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       else { // exiting but poorly-reconstructed muon
         caf.Elep_reco = longest_mip * 0.0022;
         caf.reco_q = 0;
-        caf.numu_pid = -1.;
-        caf.nue_pid = -1.;
+        caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+        caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 1;
       }
     } else { // NC -- set PID variables, will get updated later if fake CC
       caf.Elep_reco = 0.;
       caf.reco_q = 0;
-      caf.numu_pid = 0.;
-      caf.nue_pid = 0.;
+      caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
+      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
     }
 
     // CC/NC confusion
     if( electrons == 1 && muonReco <= 1 ) { // NC or numuCC reco as nueCC
-      caf.nue_pid = 1.;
-      caf.numu_pid = 0.;
       caf.Elep_reco = electron_energy*0.001;
       caf.reco_q = 0;
+      caf.reco_numu = 0; caf.reco_nue = 1; caf.reco_nc = 0;
+      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
     } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < par.CC_trk_length || longest_mip_KE/longest_mip > 3.) ) { 
       // reco as NC
-      caf.nue_pid = 0.;
-      caf.numu_pid = 0.;
       caf.Elep_reco = 0.;
       caf.reco_q = 0;
+      caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
+      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
     } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > par.CC_trk_length && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
-      caf.nue_pid = 0.;
-      caf.numu_pid = 1.;
       caf.Elep_reco = longest_mip_KE*0.001 + mmu;
       if( par.fhc ) caf.reco_q = -1;
       else {
@@ -335,22 +371,22 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         else if( michel < par.michelEff*0.25 ) caf.reco_q = 1; // incorrect mu-
         else caf.reco_q = -1; // no reco Michel
       }
+      caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+      caf.muon_contained = 1; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
     }
 
     // Hadronic energy calorimetrically
     caf.Ev_reco = caf.Elep_reco + hadTot*0.0011;
-    if( hadCollar > 30. ) {
-      caf.numu_pid = -0.5;
-      caf.nue_pid = -0.5;
-    }
+    caf.Ehad_veto = hadCollar;
 
-    //caf.Print();
+    caf.Print();
 
     caf.fill();
   }
 
   // set POT
   caf.meta_run = par.run;
+  caf.meta_subrun = par.subrun;
   // FHC events per ton per POT 1.41213e-15
   // RHC events per ton per POT 5.60088e-16
   caf.pot = ( par.fhc ? N/(25.2*1.41213e-15) : N/(25.2*5.60088e-16) );
@@ -379,6 +415,8 @@ int main( int argc, char const *argv[] )
   par.fhc = true;
   par.seed = 7; // a very random number
   par.run = 1;
+  par.subrun = 1;
+  par.n = -1;
   par.trk_muRes = 0.02; // fractional muon energy resolution of HP GAr TPC
   par.LAr_muRes = 0.05; // fractional muon energy resolution of muons contained in LAr
   par.ECAL_muRes = 0.1; // fractional muon energy resolution of muons ending in ECAL
@@ -403,6 +441,9 @@ int main( int argc, char const *argv[] )
       i += 2;
     } else if( argv[i] == std::string("--seed") ) {
       par.seed = atoi(argv[i+1]);
+      i += 2;
+    } else if( argv[i] == std::string("--nevents") || argv[i] == std::string("-n") ) {
+      par.n = atoi(argv[i+1]);
       i += 2;
     } else if( argv[i] == std::string("--rhc") ) {
       par.fhc = false;

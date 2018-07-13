@@ -11,29 +11,56 @@ CAF::CAF( std::string filename )
   cafMVA = new TTree( "MVASelection", "MVASelection" );
   cafPOT = new TTree( "pottree", "pottree" );
 
-  cafMVA->Branch( "Ev_reco", &Ev_reco, "Ev_reco/D" );
-  cafMVA->Branch( "Ev", &Ev, "Ev/D" );
-  cafMVA->Branch( "Elep_reco", &Elep_reco, "Elep_reco/D" );
-  cafMVA->Branch( "Elep", &Elep, "Elep/D" );
-  cafMVA->Branch( "Q2", &Q2, "Q2/D" );
-  cafMVA->Branch( "mvaresult", &mvaresult, "mvaresult/D" );
-  cafMVA->Branch( "numu_pid", &numu_pid, "numu_pid/D" );
-  cafMVA->Branch( "nue_pid", &nue_pid, "nue_pid/D" );
-  cafMVA->Branch( "ccnc", &ccnc, "ccnc/I" );
+  cafMVA->Branch( "run", &run, "run/I" );
+  cafMVA->Branch( "subrun", &subrun, "subrun/I" );
+  cafMVA->Branch( "event", &event, "event/I" );
+  cafMVA->Branch( "isFD", &isFD, "isFD/I" );
+  cafMVA->Branch( "isFHC", &isFHC, "isFHC/I" );
+  cafMVA->Branch( "isCC", &isCC, "isCC/I" );
+  cafMVA->Branch( "neutrinoPDG", &neutrinoPDG, "neutrinoPDG/I" );
+  cafMVA->Branch( "mode", &mode, "mode/I" );
   cafMVA->Branch( "LepPDG", &LepPDG, "LepPDG/I" );
-  cafMVA->Branch( "beamPdg", &beamPdg, "beamPdg/I" );
-  cafMVA->Branch( "neu", &neu, "neu/I" );
+  cafMVA->Branch( "Ev", &Ev, "Ev/D" );
+  cafMVA->Branch( "Q2", &Q2, "Ev/D" );
+  cafMVA->Branch( "W", &W, "Ev/D" );
+  cafMVA->Branch( "X", &X, "Ev/D" );
+  cafMVA->Branch( "Y", &Y, "Ev/D" );
+  cafMVA->Branch( "NuMomX", &NuMomX, "NuMomX/D" );
+  cafMVA->Branch( "NuMomY", &NuMomY, "NuMomY/D" );
+  cafMVA->Branch( "NuMomZ", &NuMomZ, "NuMomZ/D" );
+  cafMVA->Branch( "NuMomT", &NuMomT, "NuMomT/D" );
+  cafMVA->Branch( "LepMomX", &LepMomX, "LepMomX/D" );
+  cafMVA->Branch( "LepMomY", &LepMomY, "LepMomY/D" );
+  cafMVA->Branch( "LepMomZ", &LepMomZ, "LepMomZ/D" );
+  cafMVA->Branch( "LepMomT", &LepMomT, "LepMomT/D" );
+  cafMVA->Branch( "LepNuAngle", &LepNuAngle, "LepNuAngle/D" );
+  cafMVA->Branch( "nP", &nP, "nP/I" );
+  cafMVA->Branch( "nN", &nN, "nN/I" );
   cafMVA->Branch( "nipip", &nipip, "nipip/I" );
   cafMVA->Branch( "nipim", &nipim, "nipim/I" );
   cafMVA->Branch( "nipi0", &nipi0, "nipi0/I" );
-  cafMVA->Branch( "mode", &mode, "mode/I" );
-  cafMVA->Branch( "isFD", &isFD, "isFD/I" );
-  cafMVA->Branch( "isFHC", &isFHC, "isFHC/I" );
+  cafMVA->Branch( "nikp", &nikp, "nikp/I" );
+  cafMVA->Branch( "nikm", &nikm, "nikm/I" );
+  cafMVA->Branch( "nik0", &nik0, "nik0/I" );
+  cafMVA->Branch( "niem", &niem, "niem/I" );
+  cafMVA->Branch( "niother", &niother, "niother/I" );
+  cafMVA->Branch( "nNucleus", &nNucleus, "nNucleus/I" );
+  cafMVA->Branch( "nUNKNOWN", &nUNKNOWN, "nUNKNOWN/I" );
+  cafMVA->Branch( "Ev_reco", &Ev_reco, "Ev_reco/D" );
+  cafMVA->Branch( "Elep_reco", &Elep_reco, "Elep_reco/D" );
+  cafMVA->Branch( "reco_numu", &reco_numu, "reco_numu/I" );
+  cafMVA->Branch( "reco_nue", &reco_nue, "reco_nue/I" );
+  cafMVA->Branch( "reco_nc", &reco_nc, "reco_nc/I" );
   cafMVA->Branch( "reco_q", &reco_q, "reco_q/I" );
-  cafMVA->Branch( "run", &run, "run/I" );
+  cafMVA->Branch( "muon_contained", &muon_contained, "muon_contained/I" );
+  cafMVA->Branch( "muon_tracker", &muon_tracker, "muon_tracker/I" );
+  cafMVA->Branch( "muon_ecal", &muon_ecal, "muon_ecal/I" );
+  cafMVA->Branch( "muon_exit", &muon_exit, "muon_exit/I" );
+  cafMVA->Branch( "Ehad_veto", &Ehad_veto, "Ehad_veto/D" );
 
   cafPOT->Branch( "pot", &pot, "pot/D" );
   cafPOT->Branch( "run", &meta_run, "run/I" );
+  cafPOT->Branch( "subrun", &meta_subrun, "subrun/I" );
 }
 
 CAF::~CAF() {}
@@ -45,12 +72,9 @@ void CAF::fill()
 
 void CAF::Print()
 {
-  printf( "Event FD %d FHC %d:\n", isFD, isFHC );
-  printf( "   Truth: Ev = %3.3f Elep = %3.3f Q2 = %3.3f, lepton %d mode %d\n", Ev, Elep, Q2, LepPDG, mode );
-  printf( "    Reco: Ev = %3.3f Elep = %3.3f q %d numu %1.1f nue %1.1f\n\n", Ev_reco, Elep_reco, reco_q, numu_pid, nue_pid );
-  printf( "    weights: %d\n", nwgt[0] );
-  for( int i = 0; i < nwgt[0]; ++i ) printf( "%f ", wgt[0][i] );
-  printf( "\n" );
+  printf( "Event %d:\n", event );
+  printf( "   Truth: Ev = %3.3f Elep = %3.3f Q2 = %3.3f W = %3.3f x = %3.3f y = %3.3f lepton %d mode %d\n", Ev, LepMomT, Q2, W, X, Y, LepPDG, mode );
+  printf( "    Reco: Ev = %3.3f Elep = %3.3f q %d mu/e/nc %d%d%d cont/trk/ecal/exit %d%d%d%d had veto %2.1f\n\n", Ev_reco, Elep_reco, reco_q, reco_numu, reco_nue, reco_nc, muon_contained, muon_tracker, muon_ecal, muon_exit, Ehad_veto );
 }
 
 void CAF::fillPOT()
