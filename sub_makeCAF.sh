@@ -1,5 +1,11 @@
 #! /usr/bin/env bash
 
+# This script is intended for submitting ND CAF-maker to the Fermilab grid
+# It first runs dumpTree (extract edep-sim output to flat tree)
+# Then runs makeCAF (create CAF file from extracted output)
+# The intermediate flat tree is also saved
+# Syntax for the jobsub_submit command is:
+# jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=4000MB --group=dune file://`pwd`/sub_makeCAF.sh
 ##################################################
 
 FIRSTRUN=$((${PROCESS} * 100))
