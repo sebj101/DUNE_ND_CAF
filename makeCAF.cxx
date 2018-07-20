@@ -13,8 +13,8 @@ const double mmu = 0.1056583745;
 
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
-  bool fhc;
-  int seed, run, subrun, n;
+  bool fhc, grid;
+  int seed, run, subrun, first, n;
   double trk_muRes, LAr_muRes, ECAL_muRes;
   double em_const, em_sqrtE;
   double michelEff;
@@ -184,8 +184,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
   // Main event loop
   int N = tree->GetEntries();
-  if( par.n > 0 && par.n < N ) N = par.n;
-  for( int ii = 0; ii < N; ++ii ) {
+  if( par.n > 0 && par.n < N ) N = par.n + par.first;
+  for( int ii = par.first; ii < N; ++ii ) {
 
     tree->GetEntry(ii);
     if( ii % 100 == 0 ) printf( "Event %d of %d...\n", ii, N );
@@ -195,7 +195,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       // close the previous file
       if( ghep_file ) ghep_file->Close();
 
-      ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
+      if( par.grid ) ghep_file = new TFile( Form("genie.%d.root", ifileNo) );
+      else ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
+      
       gtree = (TTree*) ghep_file->Get( "gtree" );
 
       // can't find GHepRecord
@@ -230,7 +232,6 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.mode = in->ProcInfo().ScatteringTypeId();
     caf.Ev = in->InitState().ProbeE(genie::kRfLab);
     caf.LepPDG = in->FSPrimLeptonPdg();
-    printf( "lepton pdg %d %d\n", caf.LepPDG, lepPdg );
     caf.isCC = (abs(caf.LepPDG) == 13 || abs(caf.LepPDG) == 11);
     
     TLorentzVector lepP4;
@@ -379,7 +380,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.Ev_reco = caf.Elep_reco + hadTot*0.0011;
     caf.Ehad_veto = hadCollar;
 
-    caf.Print();
+    //caf.Print();
 
     caf.fill();
   }
@@ -413,10 +414,12 @@ int main( int argc, char const *argv[] )
   // Make parameter object and set defaults
   params par;
   par.fhc = true;
+  par.grid = false;
   par.seed = 7; // a very random number
-  par.run = 1;
-  par.subrun = 1;
+  par.run = 0;
+  par.subrun = 0;
   par.n = -1;
+  par.first = 0;
   par.trk_muRes = 0.02; // fractional muon energy resolution of HP GAr TPC
   par.LAr_muRes = 0.05; // fractional muon energy resolution of muons contained in LAr
   par.ECAL_muRes = 0.1; // fractional muon energy resolution of muons ending in ECAL
@@ -445,8 +448,14 @@ int main( int argc, char const *argv[] )
     } else if( argv[i] == std::string("--nevents") || argv[i] == std::string("-n") ) {
       par.n = atoi(argv[i+1]);
       i += 2;
+    } else if( argv[i] == std::string("--first") ) {
+      par.first = atoi(argv[i+1]);
+      i += 2;
     } else if( argv[i] == std::string("--rhc") ) {
       par.fhc = false;
+      i += 1;
+    } else if( argv[i] == std::string("--grid") ) {
+      par.grid = true;
       i += 1;
     } else i += 1; // look for next thing
   }

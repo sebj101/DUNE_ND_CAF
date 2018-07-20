@@ -228,6 +228,7 @@ if __name__ == "__main__":
     parser.add_option('--first_run', type=int, help='First run number', default=0)
     parser.add_option('--last_run', type=int, help='Last run number', default=0)
     parser.add_option('--rhc', action='store_true', help='Reverse horn current', default=False)
+    parser.add_option('--grid', action='store_true', help='grid mode', default=False)
 
     (args, dummy) = parser.parse_args()
 
@@ -290,7 +291,10 @@ if __name__ == "__main__":
     print "Building TChains for runs %d-%d..." % (args.first_run, args.last_run)
     nfiles = 0
     for run in range( args.first_run, args.last_run+1 ):
-        fname =  "%s/%02d/LArDipole.%s.%d.edepsim.root" % (args.topdir, run/1000, neutrino, run)
+        if args.grid:
+            fname = "%s/edep.%d.root" % (args.topdir,run)
+        else:
+            fname = "%s/%02d/LArDipole.%s.%d.edepsim.root" % (args.topdir, run/1000, neutrino, run)
         print fname
 
         # see if it is an OK file
