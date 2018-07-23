@@ -8,15 +8,36 @@
 # jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=4000MB --group=dune file://`pwd`/sub_makeCAF.sh
 ##################################################
 
-FIRSTRUN=$((${PROCESS} * 100))
-LASTRUN=$((${PROCESS} * 100 + 99))
-RDIR=0$((${PROCESS} / 10))
+HORN=$1
+NPER=$2
+TEST=$3
+if [ "${HORN}" != "FHC" ] && [ "${HORN}" != "RHC" ]; then
+echo "Invalid beam mode ${HORN}"
+echo "Must be FHC or RHC"
+kill -INT $$
+fi
+
+if [ "${NPER}" = "" ]; then
+echo "Number of runs per file not specified, using 50"
+NPER=50
+fi
+
+FIRSTRUN=$((${PROCESS} * ${NPER}))
+LASTRUN=$((${PROCESS} * ${NPER} + ${NPER} - 1))
 
 RNDSEED=${PROCESS}
-HORN="FHC"
-NEUTRINO="neutrino"
+
+MODE="neutrino"
 RHC=""
+if [ "${HORN}" = "RHC" ]; then
+MODE="antineutrino"
+RHC="--rhc"
+fi
+
 CP="ifdh cp"
+if [ ${TEST} = "test" ]; then
+CP="cp"
+fi
 
 INPUTTOP="/pnfs/dune/persistent/users/jmalbos/GArTPC_ND/data"
 DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dump"
@@ -59,6 +80,7 @@ export PATH=$PATH:$GEANT4_FQ_DIR/bin
 echo "Copying input files..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
+  RDIR=$((${RUN} / 1000))
   echo "${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root"
   echo "${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
   ${CP} ${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
@@ -91,11 +113,11 @@ python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run ${LASTRUN}
 
 ## Run makeCAF
 echo "Running makeCAF"
-./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${JOBNO} ${RHC} --grid
+./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
 
 ## copy outputs
-${CP} dump.root ${DUMPDIR}/${HORN}_${JOBNO}.root
-${CP} CAF.root ${CAFDIR}/CAF_${HORN}_${JOBNO}.root
+${CP} dump.root ${DUMPDIR}/${HORN}_${PROCESS}.root
+${CP} CAF.root ${CAFDIR}/CAF_${HORN}_${PROCESS}.root
 
 ##################################################
 
