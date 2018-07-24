@@ -22,21 +22,23 @@ echo "Number of runs per file not specified, using 50"
 NPER=50
 fi
 
-FIRSTRUN=$((${PROCESS} * ${NPER}))
-LASTRUN=$((${PROCESS} * ${NPER} + ${NPER} - 1))
-
-RNDSEED=${PROCESS}
-
-MODE="neutrino"
-RHC=""
-if [ "${HORN}" = "RHC" ]; then
-MODE="antineutrino"
-RHC="--rhc"
-fi
-
 CP="ifdh cp"
 if [ ${TEST} = "test" ]; then
+echo "In TEST mode, assuming interactive running"
 CP="cp"
+PROCESS=0
+fi
+
+
+FIRSTRUN=$((PROCESS * NPER))
+LASTRUN=$((PROCESS * NPER + NPER))
+
+NEUTRINO="neutrino"
+RHC=""
+if [ "${HORN}" = "RHC" ]; then
+echo "Using RHC beam mode"
+NEUTRINO="antineutrino"
+RHC="--rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/jmalbos/GArTPC_ND/data"
@@ -77,13 +79,13 @@ export PATH=$PATH:$GEANT4_FQ_DIR/bin
 
 ##################################################
 ## Fetch the genie and edep-sim output files
-echo "Copying input files..."
+echo "Copying input files for runs ${FIRSTRUN} to ${LASTRUN}..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
-  RDIR=$((${RUN} / 1000))
-  echo "${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root"
-  echo "${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
+  RDIR=0$((${RUN} / 1000))
+  echo "Copying: ${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root"
   ${CP} ${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
+  echo "Copying: ${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
   ${CP} ${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
 done
 
@@ -108,14 +110,15 @@ ${CP} ${MAKECAF} makeCAF
 ${CP} ${FHICL} fhicl.fcl
 
 ## Run dumpTree
-echo "Running dumpTree.py"
-python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run ${LASTRUN} ${RHC} --grid --outfile dump.root
+echo "Running dumpTree.py..."
+python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
-echo "Running makeCAF"
+echo "Running makeCAF..."
 ./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
 
 ## copy outputs
+echo "Copying outputs..."
 ${CP} dump.root ${DUMPDIR}/${HORN}_${PROCESS}.root
 ${CP} CAF.root ${CAFDIR}/CAF_${HORN}_${PROCESS}.root
 
