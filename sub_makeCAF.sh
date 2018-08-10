@@ -23,7 +23,7 @@ NPER=50
 fi
 
 CP="ifdh cp"
-if [ ${TEST} = "test" ]; then
+if [ "${TEST}" = "test" ]; then
 echo "In TEST mode, assuming interactive running"
 CP="cp"
 PROCESS=0
@@ -38,18 +38,19 @@ RHC=""
 if [ "${HORN}" = "RHC" ]; then
 echo "Using RHC beam mode"
 NEUTRINO="antineutrino"
-RHC="--rhc"
+RHC=" --rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/jmalbos/GArTPC_ND/data"
 DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dump"
 CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAF"
-NUSYST="/pnfs/dune/persistent/users/marshalc/CAF/nusyst.tar.gz"
-EDEPSIM="/pnfs/dune/persistent/users/marshalc/CAF/edep-sim.tar.gz"
-EDEPSIMEVENTS="/pnfs/dune/persistent/users/marshalc/CAF/EDepSimEvents.tar.gz"
-DUMPTREE="/pnfs/dune/persistent/users/marshalc/CAF/dumpTree.py"
-MAKECAF="/pnfs/dune/persistent/users/marshalc/CAF/makeCAF"
-FHICL="/pnfs/dune/persistent/users/marshalc/CAF/fhicl.fcl"
+#NUSYST="/pnfs/dune/persistent/users/marshalc/CAF/nusyst.tar.gz"
+#EDEPSIM="/pnfs/dune/persistent/users/marshalc/CAF/edep-sim.tar.gz"
+#EDEPSIMEVENTS="/pnfs/dune/persistent/users/marshalc/CAF/EDepSimEvents.tar.gz"
+#DUMPTREE="/pnfs/dune/persistent/users/marshalc/CAF/dumpTree.py"
+#MAKECAF="/pnfs/dune/persistent/users/marshalc/CAF/makeCAF"
+#FHICL="/pnfs/dune/persistent/users/marshalc/CAF/fhicl.fcl"
+STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
 
@@ -93,28 +94,21 @@ done
 ## Copy edep-sim and nusyst binaries and untar them
 
 echo "Getting edep-sim and nusyst code"
-${CP} ${EDEPSIM} edep-sim.tar.gz
-tar xzf edep-sim.tar.gz
+${CP} ${STUFF} DUNE_ND_CAF.tar.gz
+tar xzf DUNE_ND_CAF.tar.gz
+mv DUNE_ND_CAF/* .
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
 
-${CP} ${NUSYST} nusyst.tar.gz
-tar xzf nusyst.tar.gz
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusyst/build/Linux/lib:${PWD}/nusyst/artless
-
-${CP} ${EDEPSIMEVENTS} EDepSimEvents.tar.gz
-tar xzf EDepSimEvents.tar.gz
-
-## copy dumpTree.py, makeCAF binary, fhicl file
-${CP} ${DUMPTREE} dumpTree.py
-${CP} ${MAKECAF} makeCAF
-${CP} ${FHICL} fhicl.fcl
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
+echo "python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root"
 python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
 echo "Running makeCAF..."
+echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} --grid ${RHC}"
 ./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
 
 ## copy outputs

@@ -10,6 +10,8 @@ lar_active_vols = [ "LArActive", "PixelPlane", "LArCathode", "volLightUsPlane", 
 
 def loop( events, tgeo, tout, nfiles, first_run ):
 
+    print "Inside event loop with %d files and first run %d" % (nfiles, first_run)
+
     # updated geometry with less steel
     offset = [ 0., 300., 60. ]
     fvLo = [ -150., -100., 50. ]
@@ -19,6 +21,7 @@ def loop( events, tgeo, tout, nfiles, first_run ):
 
     event = ROOT.TG4Event()
     events.SetBranchAddress("Event",ROOT.AddressOf(event))
+    print "Set branch address"
 
     N = events.GetEntries()
     evt_per_file = N/nfiles
@@ -28,6 +31,7 @@ def loop( events, tgeo, tout, nfiles, first_run ):
         print "\n\n\n\n\n\n\n\n\n\n\n"
         print "AAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHhhhh seriously stop it"
 
+    print "Starting loop over %d entries" % N
     for ient in range(N):
         if ient % 100 == 0:
             print "Event %d of %d..." % (ient,N)
@@ -274,15 +278,14 @@ if __name__ == "__main__":
     t_fsTrkLen = array('f',100*[0.])
     tout.Branch('fsTrkLen',t_fsTrkLen,'fsTrkLen[nFS]/F')
 
+    loaded = False
     if os.path.exists("EDepSimEvents/EDepSimEvents.so"):
         ROOT.gSystem.Load("EDepSimEvents/EDepSimEvents.so")
-    else:
-        tFile.MakeProject("EDepSimEvents","*","RECREATE++")
+        loaded = True
 
     tgeo = None
 
     events = ROOT.TChain( "EDepSimEvents", "main event tree" )
-    rootracker = ROOT.TChain( "DetSimPassThru/gRooTracker", "rootracker pass-through" )
 
     neutrino = "neutrino"
     if args.rhc:
@@ -307,6 +310,7 @@ if __name__ == "__main__":
         events.Add( fname )
 
         if tgeo is None: # first OK file, get geometry
+            tf.MakeProject("EDepSimEvents","*","RECREATE++")
             tgeo = tf.Get("EDepSimGeometry")
         tf.Close() # done with this one
 

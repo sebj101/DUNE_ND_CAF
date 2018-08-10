@@ -451,11 +451,11 @@ int main( int argc, char const *argv[] )
     } else if( argv[i] == std::string("--first") ) {
       par.first = atoi(argv[i+1]);
       i += 2;
-    } else if( argv[i] == std::string("--rhc") ) {
-      par.fhc = false;
-      i += 1;
     } else if( argv[i] == std::string("--grid") ) {
       par.grid = true;
+      i += 1;
+    } else if( argv[i] == std::string("--rhc") ) {
+      par.fhc = false;
       i += 1;
     } else i += 1; // look for next thing
   }
@@ -464,6 +464,8 @@ int main( int argc, char const *argv[] )
   printf( "Searching for GENIE ghep files here: %s\n", ghepdir.c_str() );
   if( par.fhc ) printf( "Running neutrino mode (FHC)\n" );
   else printf( "Running antineutrino mode (RHC)\n" );
+  if( par.grid ) printf( "Running grid mode\n" );
+  else printf( "Running test mode\n" );
   printf( "Output CAF file: %s\n", outfile.c_str() );
 
   CAF caf( outfile );
