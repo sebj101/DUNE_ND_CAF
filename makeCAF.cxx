@@ -5,7 +5,7 @@
 #include "TVector3.h"
 #include "TLorentzVector.h"
 #include "Ntuple/NtpMCEventRecord.h"
-#include "nusyst/artless/response_helper.hh"
+#include "nusystematics/artless/response_helper.hh"
 #include <stdio.h>
 
 TRandom3 * rando;
@@ -25,7 +25,7 @@ struct params {
 void recoMuonTracker( CAF &caf, params &par )
 {
   // smear momentum by resolution
-  double p = sqrt(caf.LepMomT*caf.LepMomT - mmu*mmu);
+  double p = sqrt(caf.LepE*caf.LepE - mmu*mmu);
   double reco_p = rando->Gaus( p, p*par.trk_muRes );
   caf.Elep_reco = sqrt(reco_p*reco_p + mmu*mmu);
 
@@ -42,7 +42,7 @@ void recoMuonTracker( CAF &caf, params &par )
 void recoMuonLAr( CAF &caf, params &par )
 {
   // range-based, smear kinetic energy
-  double ke = caf.LepMomT - mmu;
+  double ke = caf.LepE - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.LAr_muRes );
   caf.Elep_reco = reco_ke + mmu;
 
@@ -64,7 +64,7 @@ void recoMuonLAr( CAF &caf, params &par )
 void recoMuonECAL( CAF &caf, params &par )
 {
   // range-based KE
-  double ke = caf.LepMomT - mmu;
+  double ke = caf.LepE - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.ECAL_muRes );
   caf.Elep_reco = reco_ke + mmu;
 
@@ -85,12 +85,12 @@ void recoElectron( CAF &caf, params &par )
   caf.muon_contained = 0; caf.muon_tracker = 1; caf.muon_ecal = 0; caf.muon_exit = 0;
 
   // fake efficiency...threshold of 300 MeV, eff rising to 100% by 700 MeV
-  if( rando->Rndm() > (caf.LepMomT-0.3)*2.5 ) { // reco as NC
+  if( rando->Rndm() > (caf.LepE-0.3)*2.5 ) { // reco as NC
     caf.Elep_reco = 0.;
     caf.reco_nue = 0; caf.reco_nc = 1;
-    caf.Ev_reco = caf.LepMomT; // include electron energy in Ev anyway, since it won't show up in reco hadronic energy
+    caf.Ev_reco = caf.LepE; // include electron energy in Ev anyway, since it won't show up in reco hadronic energy
   } else { // reco as CC
-    caf.Elep_reco = rando->Gaus( caf.LepMomT, caf.LepMomT*(par.em_const + par.em_sqrtE/sqrt(caf.LepMomT)) );
+    caf.Elep_reco = rando->Gaus( caf.LepE, caf.LepE*(par.em_const + par.em_sqrtE/sqrt(caf.LepE)) );
     caf.reco_nue = 1; caf.reco_nc = 0;
     caf.Ev_reco = caf.Elep_reco;
   }
@@ -177,7 +177,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   // Get list of variations, and make CAF branch for each one
   std::vector<unsigned int> parIds = rh.GetParameters();
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
-    larsyst::SystParamHeader head = rh.GetHeader(parIds[i]);
+    systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
     caf.addRWbranch( parIds[i], head.prettyName, head.paramVariations );
   }
@@ -253,7 +253,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     for( int i = 0; i < nFS; ++i ) {
       if( fsPdg[i] == caf.LepPDG ) {
         lepP4.SetPxPyPzE( fsPx[i]*0.001, fsPy[i]*0.001, fsPz[i]*0.001, fsE[i]*0.001 );
-        caf.LepMomT = fsE[i]*0.001;
+        caf.LepE = fsE[i]*0.001;
       }
       else if( fsPdg[i] == 2212 ) caf.nP++;
       else if( fsPdg[i] == 2112 ) caf.nN++;
@@ -280,20 +280,25 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.NuMomX = nuP4.X();
     caf.NuMomY = nuP4.Y();
     caf.NuMomZ = nuP4.Z();
-    caf.NuMomT = nuP4.E();
     caf.LepMomX = lepP4.X();
     caf.LepMomY = lepP4.Y();
     caf.LepMomZ = lepP4.Z();
-    caf.LepMomT = lepP4.E();
+    caf.LepE = lepP4.E();
     caf.LepNuAngle = nuP4.Angle( lepP4.Vect() );
 
     // Add DUNErw weights to the CAF
-    // typedef std::map<paramId_t, std::vector<double>> event_unit_response_t
-    larsyst::event_unit_response_t resp = rh.GetEventResponses(*event);
-    for( larsyst::event_unit_response_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
-      caf.nwgt[(*it).first] = (*it).second.size();
-      for( unsigned int i = 0; i < (*it).second.size(); ++i ) {
-        caf.wgt[(*it).first][i] = (*it).second[i];
+
+    // struct ParamResponses { 
+    //   paramId_t pid;
+    //   std::vector<double> responses;
+    // }
+    // typedef std::vector<ParamResponses> event_unit_response_t;
+
+    systtools::event_unit_response_t resp = rh.GetEventResponses(*event);
+    for( systtools::event_unit_response_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
+      caf.nwgt[(*it).pid] = (*it).responses.size();
+      for( unsigned int i = 0; i < (*it).responses.size(); ++i ) {
+        caf.wgt[(*it).pid][i] = (*it).responses[i];
       }
     }
 

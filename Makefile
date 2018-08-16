@@ -52,8 +52,8 @@ LDLIBS += -L$(GENIE)/lib \
                                         -lGUtils \
                                         -lGReWeight
 
-LDLIBS += -L$(NUSYST)/build/Linux/lib -llarsyst_utility -llarsyst_interpreters
-LDLIBS += -L$(NUSYST)/build/nusyst/artless -lnusyst_systproviders
+LDLIBS += -L$(NUSYST)/build/Linux/lib -lsystematicstools_utility -lsystematicstools_interpreters -lsystematicstools_interface -lsystematicstools_systproviders
+LDLIBS += -L$(NUSYST)/build/nusystematics/artless -lnusystematics_systproviders
 
 # make a binary for every .cxx file
 all : $(patsubst %.cxx, %.o, $(wildcard *.cxx))

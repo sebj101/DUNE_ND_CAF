@@ -28,11 +28,10 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "NuMomX", &NuMomX, "NuMomX/D" );
   cafMVA->Branch( "NuMomY", &NuMomY, "NuMomY/D" );
   cafMVA->Branch( "NuMomZ", &NuMomZ, "NuMomZ/D" );
-  cafMVA->Branch( "NuMomT", &NuMomT, "NuMomT/D" );
   cafMVA->Branch( "LepMomX", &LepMomX, "LepMomX/D" );
   cafMVA->Branch( "LepMomY", &LepMomY, "LepMomY/D" );
   cafMVA->Branch( "LepMomZ", &LepMomZ, "LepMomZ/D" );
-  cafMVA->Branch( "LepMomT", &LepMomT, "LepMomT/D" );
+  cafMVA->Branch( "LepE", &LepE, "LepE/D" );
   cafMVA->Branch( "LepNuAngle", &LepNuAngle, "LepNuAngle/D" );
   cafMVA->Branch( "nP", &nP, "nP/I" );
   cafMVA->Branch( "nN", &nN, "nN/I" );
@@ -73,7 +72,7 @@ void CAF::fill()
 void CAF::Print()
 {
   printf( "Event %d:\n", event );
-  printf( "   Truth: Ev = %3.3f Elep = %3.3f Q2 = %3.3f W = %3.3f x = %3.3f y = %3.3f lepton %d mode %d\n", Ev, LepMomT, Q2, W, X, Y, LepPDG, mode );
+  printf( "   Truth: Ev = %3.3f Elep = %3.3f Q2 = %3.3f W = %3.3f x = %3.3f y = %3.3f lepton %d mode %d\n", Ev, LepE, Q2, W, X, Y, LepPDG, mode );
   printf( "    Reco: Ev = %3.3f Elep = %3.3f q %d mu/e/nc %d%d%d cont/trk/ecal/exit %d%d%d%d had veto %2.1f\n\n", Ev_reco, Elep_reco, reco_q, reco_numu, reco_nue, reco_nc, muon_contained, muon_tracker, muon_ecal, muon_exit, Ehad_veto );
 }
 
