@@ -53,10 +53,11 @@ echo "Setting up software..."
 
 source /cvmfs/dune.opensciencegrid.org/products/dune/setup_dune.sh
 
+source /cvmfs/larsoft.opensciencegrid.org/products/root/v6_10_08b/Linux64bit+2.6-2.12-e15-nu-prof/bin/thisroot.sh
+setup dk2nu        v01_05_01b -q e15:prof
 setup genie        v2_12_10c   -q e17:prof
 setup genie_xsec   v2_12_10    -q DefaultPlusMECWithNC
 setup genie_phyopt v2_12_10    -q dkcharmtau
-setup dk2nu        v01_05_01b -q e15:prof
 setup ifdhc
 
 # we need something called TBB for ROOT
@@ -77,13 +78,16 @@ echo "Copying input files for runs ${FIRSTRUN} to ${LASTRUN}..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
   RDIR=0$((${RUN} / 1000))
-  if [ -f ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root ] && [ -f ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root ]; then
-    echo "Copying: ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+  ifdh ls ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root > ls1.txt
+  ifdh ls ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root > ls2.txt
+  if [ -s ls1.txt ] && [ -s ls2.txt ]; then
+    echo "${CP} ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root"
     ${CP} ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
-    echo "Copying: ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
+    echo "${CP} ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root"
     ${CP} ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
   else 
     echo "OOPS! Could not find: ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+    echo "  or maybe it was:    ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
   fi
 done
 
@@ -94,10 +98,8 @@ echo "Getting edep-sim and nusyst code"
 ${CP} ${STUFF} DUNE_ND_CAF.tar.gz
 tar xzf DUNE_ND_CAF.tar.gz
 mv DUNE_ND_CAF/* .
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
+#export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:${PWD}/nusyst/artless
-
-ls
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
@@ -105,14 +107,15 @@ echo "python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((L
 python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
-SEED=$((PROCESS + 1))
 echo "Running makeCAF..."
-echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${SEED} --grid ${RHC}"
-./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${SEED} ${RHC} --grid
+echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} --grid ${RHC}"
+./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
 
 ## copy outputs
 echo "Copying outputs..."
+echo "${CP} dump.root ${DUMPDIR}/${HORN}_${PROCESS}.root"
 ${CP} dump.root ${DUMPDIR}/${HORN}_${PROCESS}.root
+echo "${CP} CAF.root ${CAFDIR}/CAF_${HORN}_${PROCESS}.root"
 ${CP} CAF.root ${CAFDIR}/CAF_${HORN}_${PROCESS}.root
 
 ##################################################
