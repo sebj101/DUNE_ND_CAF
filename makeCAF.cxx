@@ -229,6 +229,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     // Get truth stuff out of GENIE ghep record
     caf.neutrinoPDG = in->InitState().ProbePdg();
+    caf.neutrinoPDGunosc = in->InitState().ProbePdg(); // fill this for similarity with FD, but no oscillations
     caf.mode = in->ProcInfo().ScatteringTypeId();
     caf.Ev = in->InitState().ProbeE(genie::kRfLab);
     caf.LepPDG = in->FSPrimLeptonPdg();
@@ -421,7 +422,7 @@ int main( int argc, char const *argv[] )
   par.fhc = true;
   par.grid = false;
   par.seed = 7; // a very random number
-  par.run = 0;
+  par.run = 1; // CAFAna doesn't like run number 0
   par.subrun = 0;
   par.n = -1;
   par.first = 0;
@@ -449,6 +450,7 @@ int main( int argc, char const *argv[] )
       i += 2;
     } else if( argv[i] == std::string("--seed") ) {
       par.seed = atoi(argv[i+1]);
+      par.run = par.seed;
       i += 2;
     } else if( argv[i] == std::string("--nevents") || argv[i] == std::string("-n") ) {
       par.n = atoi(argv[i+1]);

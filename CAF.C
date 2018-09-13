@@ -17,22 +17,25 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "isFD", &isFD, "isFD/I" );
   cafMVA->Branch( "isFHC", &isFHC, "isFHC/I" );
   cafMVA->Branch( "isCC", &isCC, "isCC/I" );
-  cafMVA->Branch( "neutrinoPDG", &neutrinoPDG, "neutrinoPDG/I" );
-  cafMVA->Branch( "mode", &mode, "mode/I" );
-  cafMVA->Branch( "LepPDG", &LepPDG, "LepPDG/I" );
-  cafMVA->Branch( "Ev", &Ev, "Ev/D" );
-  cafMVA->Branch( "Q2", &Q2, "Ev/D" );
-  cafMVA->Branch( "W", &W, "Ev/D" );
-  cafMVA->Branch( "X", &X, "Ev/D" );
-  cafMVA->Branch( "Y", &Y, "Ev/D" );
+
+  cafMVA->Branch( "nuPDG", &neutrinoPDG, "nuPDG/I" );
+  cafMVA->Branch( "nuPDGunosc", &neutrinoPDGunosc, "nuPDGunosc/I");
   cafMVA->Branch( "NuMomX", &NuMomX, "NuMomX/D" );
   cafMVA->Branch( "NuMomY", &NuMomY, "NuMomY/D" );
   cafMVA->Branch( "NuMomZ", &NuMomZ, "NuMomZ/D" );
+  cafMVA->Branch( "Ev", &Ev, "Ev/D" );
+  cafMVA->Branch( "mode", &mode, "mode/I" );
+  cafMVA->Branch( "LepPDG", &LepPDG, "LepPDG/I" );
   cafMVA->Branch( "LepMomX", &LepMomX, "LepMomX/D" );
   cafMVA->Branch( "LepMomY", &LepMomY, "LepMomY/D" );
   cafMVA->Branch( "LepMomZ", &LepMomZ, "LepMomZ/D" );
   cafMVA->Branch( "LepE", &LepE, "LepE/D" );
   cafMVA->Branch( "LepNuAngle", &LepNuAngle, "LepNuAngle/D" );
+  cafMVA->Branch( "Q2", &Q2, "Ev/D" );
+  cafMVA->Branch( "W", &W, "Ev/D" );
+  cafMVA->Branch( "X", &X, "Ev/D" );
+  cafMVA->Branch( "Y", &Y, "Ev/D" );
+
   cafMVA->Branch( "nP", &nP, "nP/I" );
   cafMVA->Branch( "nN", &nN, "nN/I" );
   cafMVA->Branch( "nipip", &nipip, "nipip/I" );
@@ -45,6 +48,7 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "niother", &niother, "niother/I" );
   cafMVA->Branch( "nNucleus", &nNucleus, "nNucleus/I" );
   cafMVA->Branch( "nUNKNOWN", &nUNKNOWN, "nUNKNOWN/I" );
+
   cafMVA->Branch( "Ev_reco", &Ev_reco, "Ev_reco/D" );
   cafMVA->Branch( "Elep_reco", &Elep_reco, "Elep_reco/D" );
   cafMVA->Branch( "reco_numu", &reco_numu, "reco_numu/I" );

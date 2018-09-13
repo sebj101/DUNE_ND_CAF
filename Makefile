@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -g -Wall -fPIC -DNO_ART
 ROOTFLAGS = `root-config --cflags --glibs`
 INCLUDE = -I$(GENIE_INC)/GENIE
-INCLUDE += -I$(NUSYST) -I$(NUSYST)/build/larsyst/src/larsyst
+INCLUDE += -I$(NUSYST) -I$(NUSYST)/build/systematicstools/src/systematicstools
 INCLUDE += -I$(NUSYST)/build/Linux/include/
 
 LDLIBS += -L$(LOG4CPP_LIB) -llog4cpp

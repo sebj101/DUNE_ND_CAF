@@ -22,7 +22,7 @@ public:
   // event accounting
   int run, subrun, event;
   // Truth information
-  int isCC, neutrinoPDG, mode, LepPDG; 
+  int isCC, neutrinoPDG, neutrinoPDGunosc, mode, LepPDG; 
   double Ev, Q2, W, X, Y, NuMomX, NuMomY, NuMomZ, LepMomX, LepMomY, LepMomZ, LepE, LepNuAngle;
   // True particle counts
   int nP, nN, nipip, nipim, nipi0, nikp, nikm, nik0, niem, niother, nNucleus, nUNKNOWN;

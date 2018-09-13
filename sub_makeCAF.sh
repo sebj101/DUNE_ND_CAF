@@ -5,7 +5,7 @@
 # Then runs makeCAF (create CAF file from extracted output)
 # The intermediate flat tree is also saved
 # Syntax for the jobsub_submit command is:
-# jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=4000MB --group=dune file://`pwd`/sub_makeCAF.sh
+# jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=4000MB --group=dune file://`pwd`/sub_makeCAF.sh FHC 50
 ##################################################
 
 HORN=$1
@@ -25,7 +25,7 @@ fi
 CP="ifdh cp"
 if [ "${TEST}" = "test" ]; then
 echo "In TEST mode, assuming interactive running"
-CP="cp"
+#CP="cp"
 PROCESS=0
 fi
 
@@ -41,15 +41,9 @@ NEUTRINO="antineutrino"
 RHC=" --rhc"
 fi
 
-INPUTTOP="/pnfs/dune/persistent/users/jmalbos/GArTPC_ND/data"
+INPUTTOP="/pnfs/dune/persistent/users/marshalc/CAF"
 DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dump"
 CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAF"
-#NUSYST="/pnfs/dune/persistent/users/marshalc/CAF/nusyst.tar.gz"
-#EDEPSIM="/pnfs/dune/persistent/users/marshalc/CAF/edep-sim.tar.gz"
-#EDEPSIMEVENTS="/pnfs/dune/persistent/users/marshalc/CAF/EDepSimEvents.tar.gz"
-#DUMPTREE="/pnfs/dune/persistent/users/marshalc/CAF/dumpTree.py"
-#MAKECAF="/pnfs/dune/persistent/users/marshalc/CAF/makeCAF"
-#FHICL="/pnfs/dune/persistent/users/marshalc/CAF/fhicl.fcl"
 STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
@@ -59,10 +53,9 @@ echo "Setting up software..."
 
 source /cvmfs/dune.opensciencegrid.org/products/dune/setup_dune.sh
 
-source /cvmfs/larsoft.opensciencegrid.org/products/root/v6_10_08b/Linux64bit+2.6-2.12-e15-nu-prof/bin/thisroot.sh
-setup genie        v2_12_8c   -q e15:prof
-setup genie_xsec   v2_12_8    -q DefaultPlusMECWithNC
-setup genie_phyopt v2_12_8    -q dkcharmtau
+setup genie        v2_12_10c   -q e17:prof
+setup genie_xsec   v2_12_10    -q DefaultPlusMECWithNC
+setup genie_phyopt v2_12_10    -q dkcharmtau
 setup dk2nu        v01_05_01b -q e15:prof
 setup ifdhc
 
@@ -84,10 +77,14 @@ echo "Copying input files for runs ${FIRSTRUN} to ${LASTRUN}..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
   RDIR=0$((${RUN} / 1000))
-  echo "Copying: ${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root"
-  ${CP} ${INPUTTOP}/sim/LArDipole/${RDIR}/LArDipole.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
-  echo "Copying: ${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
-  ${CP} ${INPUTTOP}/genie/LAr/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
+  if [ -f ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root ] && [ -f ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root ]; then
+    echo "Copying: ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+    ${CP} ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
+    echo "Copying: ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
+    ${CP} ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
+  else 
+    echo "OOPS! Could not find: ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+  fi
 done
 
 ##################################################
@@ -98,8 +95,9 @@ ${CP} ${STUFF} DUNE_ND_CAF.tar.gz
 tar xzf DUNE_ND_CAF.tar.gz
 mv DUNE_ND_CAF/* .
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:${PWD}/nusyst/artless
 
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusyst/build/Linux/lib:${PWD}/nusyst/artless
+ls
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
@@ -107,9 +105,10 @@ echo "python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((L
 python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
+SEED=$((PROCESS + 1))
 echo "Running makeCAF..."
-echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} --grid ${RHC}"
-./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
+echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${SEED} --grid ${RHC}"
+./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${SEED} ${RHC} --grid
 
 ## copy outputs
 echo "Copying outputs..."

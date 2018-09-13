@@ -2,22 +2,27 @@
 
 import sys
 import os.path
+import os
 import ROOT
 from optparse import OptionParser
 from array import array
 
 lar_active_vols = [ "LArActive", "PixelPlane", "LArCathode", "volLightUsPlane", "volLightDsPlane", "volLArLight", "volResistiveWire", "ResistiveField", "LArBot", "LArSubModule", "ArgonCubeActive" ]
 
-def loop( events, tgeo, tout, nfiles, first_run ):
+def loop( events, tgeo, tout, nfiles, okruns ):
 
-    print "Inside event loop with %d files and first run %d" % (nfiles, first_run)
+    if len(okruns) == 0:
+        print "There are no runs in this TTree...skipping!"
+        return
+
+    print "Inside event loop with %d files and first run %d" % (nfiles, okruns[0])
 
     # updated geometry with less steel
-    offset = [ 0., 300., 60. ]
-    fvLo = [ -150., -100., 50. ]
-    fvHi = [ 150., 100., 350. ]
-    collarLo = [ -170., -120., 30. ]
-    collarHi = [ 170., 120., 470. ]
+    offset = [ 0., 305., 5. ]
+    fvLo = [ -300., -100., 50. ]
+    fvHi = [ 300., 100., 350. ]
+    collarLo = [ -320., -120., 30. ]
+    collarHi = [ 320., 120., 470. ]
 
     event = ROOT.TG4Event()
     events.SetBranchAddress("Event",ROOT.AddressOf(event))
@@ -39,7 +44,9 @@ def loop( events, tgeo, tout, nfiles, first_run ):
         for ivtx,vertex in enumerate(event.Primaries):
 
             ## initialize output variables
-            t_ifileNo[0] = first_run + ient/evt_per_file; t_ievt[0] = ient%evt_per_file;
+            fileidx = ient/evt_per_file
+            t_ifileNo[0] = okruns[fileidx]
+            t_ievt[0] = ient%evt_per_file;
             t_vtx[0]=0.0; t_vtx[1]=0.0; t_vtx[2]=0.0;
             t_p3lep[0]=0.0; t_p3lep[1]=0.0; t_p3lep[2]=0.0;
             t_lepPdg[0] = 0
@@ -143,6 +150,7 @@ def loop( events, tgeo, tout, nfiles, first_run ):
                 elif "volLArActive" in endVolName or "volPixelPlane" in endVolName: endVolIdx = 1 # active LAr
                 elif "volLAr" in endVolName or "DsPlane" in endVolName or "UsPlane" in endVolName: endVolIdx = 2 # Passive component of LAr
                 elif "volCylinder" in endVolName or "ArgonCube" in endVolName: endVolIdx = 2 # Passive component of LAr
+                elif "volInsulation" in endVolName or "volGRE" in endVolName or "volSSMemb" in endVolName or "volReinforced" in endVolName: endVolIdx = 2
                 elif "TPCChamber" in endVolName: endVolIdx = 6 # use "endcap yoke" idx for pressure vessel
                 elif "TPC" in endVolName: endVolIdx = 3 # very rare active tpc stopper
                 elif "ECALLeft" in endVolName or "ECALRight" in endVolName: endVolIdx = 4 # "endcap" ECALs
@@ -293,29 +301,33 @@ if __name__ == "__main__":
 
     print "Building TChains for runs %d-%d..." % (args.first_run, args.last_run)
     nfiles = 0
+    okruns = []
     for run in range( args.first_run, args.last_run+1 ):
         if args.grid:
             fname = "%s/edep.%d.root" % (args.topdir,run)
         else:
-            fname = "%s/%02d/LArDipole.%s.%d.edepsim.root" % (args.topdir, run/1000, neutrino, run)
+            fname = "%s/%02d/LAr.%s.%d.edepsim.root" % (args.topdir, run/1000, neutrino, run)
         print fname
 
         # see if it is an OK file
+        if not os.access( fname, os.R_OK ):
+            continue
         tf = ROOT.TFile( fname, "OLD" )
         if tf.TestBit(ROOT.TFile.kRecovered): # problem with file
             continue
         nfiles += 1
+        okruns.append( run )
 
         # add it to the tchain
         events.Add( fname )
 
         if tgeo is None: # first OK file, get geometry
-            tf.MakeProject("EDepSimEvents","*","RECREATE++")
+            #tf.MakeProject("EDepSimEvents","*","RECREATE++")
             tgeo = tf.Get("EDepSimGeometry")
         tf.Close() # done with this one
 
     print "  got %d events in %d files = %1.1f events per file" % (events.GetEntries(), nfiles, 1.0*events.GetEntries()/nfiles)
-    loop( events, tgeo, tout, nfiles, args.first_run )
+    loop( events, tgeo, tout, nfiles, sorted(okruns) )
 
     fout.cd()
     tout.Write()
