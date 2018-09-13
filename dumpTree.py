@@ -287,9 +287,10 @@ if __name__ == "__main__":
     tout.Branch('fsTrkLen',t_fsTrkLen,'fsTrkLen[nFS]/F')
 
     loaded = False
-    if os.path.exists("EDepSimEvents/EDepSimEvents.so"):
-        ROOT.gSystem.Load("EDepSimEvents/EDepSimEvents.so")
-        loaded = True
+    #if os.path.exists("EDepSimEvents/EDepSimEvents.so"):
+    #    print "Found EDepSimEvents.so"
+    #    ROOT.gSystem.Load("EDepSimEvents/EDepSimEvents.so")
+    #    loaded = True
 
     tgeo = None
 
@@ -311,22 +312,28 @@ if __name__ == "__main__":
 
         # see if it is an OK file
         if not os.access( fname, os.R_OK ):
+            print "Can't access file: %s" % fname
             continue
-        tf = ROOT.TFile( fname, "OLD" )
+        tf = ROOT.TFile( fname )
         if tf.TestBit(ROOT.TFile.kRecovered): # problem with file
+            print "File is crap: %s" % fname
             continue
         nfiles += 1
         okruns.append( run )
+
+        if not loaded:
+            loaded = True
+            tf.MakeProject("EDepSimEvents","*","RECREATE++")
 
         # add it to the tchain
         events.Add( fname )
 
         if tgeo is None: # first OK file, get geometry
-            #tf.MakeProject("EDepSimEvents","*","RECREATE++")
             tgeo = tf.Get("EDepSimGeometry")
         tf.Close() # done with this one
 
-    print "  got %d events in %d files = %1.1f events per file" % (events.GetEntries(), nfiles, 1.0*events.GetEntries()/nfiles)
+    print "OK runs: ", sorted(okruns)
+    print "got %d events in %d files = %1.1f events per file" % (events.GetEntries(), nfiles, 1.0*events.GetEntries()/nfiles)
     loop( events, tgeo, tout, nfiles, sorted(okruns) )
 
     fout.cd()
