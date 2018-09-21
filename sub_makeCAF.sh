@@ -29,7 +29,6 @@ echo "In TEST mode, assuming interactive running"
 PROCESS=0
 fi
 
-
 FIRSTRUN=$((PROCESS * NPER))
 LASTRUN=$((PROCESS * NPER + NPER))
 

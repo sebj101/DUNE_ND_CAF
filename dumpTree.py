@@ -49,6 +49,7 @@ def loop( events, tgeo, tout, nfiles, okruns ):
             t_ievt[0] = ient%evt_per_file;
             t_vtx[0]=0.0; t_vtx[1]=0.0; t_vtx[2]=0.0;
             t_p3lep[0]=0.0; t_p3lep[1]=0.0; t_p3lep[2]=0.0;
+            t_lepDeath[0]=0.0; t_lepDeath[1]=0.0; t_lepDeath[2]=0.0;
             t_lepPdg[0] = 0
             t_lepKE[0] = 0.
             t_muonExitPt[0] = 0.0; t_muonExitPt[1] = 0.0; t_muonExitPt[2] = 0.0; 
@@ -129,7 +130,7 @@ def loop( events, tgeo, tout, nfiles, okruns ):
                     t_muonExitMom[0] = p.Momentum.x()
                     t_muonExitMom[1] = p.Momentum.y()
                     t_muonExitMom[2] = p.Momentum.z()
-                    if abs(pt.X() / 10. - offset[0]) > 200.: muexit = 1 # side exit
+                    if abs(pt.X() / 10. - offset[0]) > 350.: muexit = 1 # side exit
                     elif abs(pt.Y() / 10. - offset[1]) > 150.: muexit = 2 # top/bottom exit
                     elif pt.Z() / 10. - offset[2] < 0.: muexit = 3 # upstream exit
                     elif pt.Z() / 10. - offset[2] > 500.: muexit = 4 # downstream exit
@@ -142,6 +143,10 @@ def loop( events, tgeo, tout, nfiles, okruns ):
                 endpt = leptraj.Points[-1].Position
 
                 node = tgeo.FindNode( endpt.X(), endpt.Y(), endpt.Z() )
+
+                t_lepDeath[0] = endpt.X()/10. - offset[0]
+                t_lepDeath[1] = endpt.Y()/10. - offset[1]
+                t_lepDeath[2] = endpt.Z()/10. - offset[2]
 
                 endVolName = node.GetName()
 
@@ -188,6 +193,9 @@ def loop( events, tgeo, tout, nfiles, okruns ):
                 # 4 = magnet/coil stopper
                 elif endVolIdx == 7 or endVolIdx == 8: 
                     t_muonReco[0] = 4
+                # PV
+                elif endVolIdx == 6:
+                    t_muonReco[0] = 9
                 # 5 = passive Ar stopper
                 elif endVolIdx == 2: 
                     t_muonReco[0] = 5
@@ -255,6 +263,8 @@ if __name__ == "__main__":
     tout.Branch('p3lep',t_p3lep,'p3lep[3]/F')
     t_vtx = array('f',3*[0.0])
     tout.Branch('vtx',t_vtx,'vtx[3]/F')
+    t_lepDeath = array('f',3*[0.0])
+    tout.Branch('lepDeath',t_lepDeath,'lepDeath[3]/F')
     t_lepPdg = array('i',[0])
     tout.Branch('lepPdg',t_lepPdg,'lepPdg/I')
     t_lepKE = array('f',[0])

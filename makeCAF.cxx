@@ -211,7 +211,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     }
 
     // fiducial vertex cut
-    if( vtx[0] < -150. || vtx[0] > 150. ) continue;
+    if( vtx[0] < -300. || vtx[0] > 300. ) continue;
     if( vtx[1] < -100. || vtx[1] > 100. ) continue;
     if( vtx[2] <   50. || vtx[2] > 350. ) continue;
 
