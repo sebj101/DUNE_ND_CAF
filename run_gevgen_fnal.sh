@@ -86,7 +86,7 @@ gevgen_fnal \
     -f local_flux_files/*.dk2nu.root,DUNEND \
     -g ${GEOMETRY}.gdml \
     -t ${TOPVOL} \
-    -m ${GEOMETRY}.maxpl.xml \
+    -m ${GEOMETRY}.${TOPVOL}.maxpl.xml \
     -L cm -D g_cm3 \
     ${NEVENTS} \
     --seed ${RNDSEED} \
