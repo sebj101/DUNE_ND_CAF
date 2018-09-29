@@ -27,6 +27,9 @@ public:
   // True particle counts
   int nP, nN, nipip, nipim, nipi0, nikp, nikm, nik0, niem, niother, nNucleus, nUNKNOWN;
 
+  // vertex -- smear it?
+  double vtx_x, vtx_y, vtx_z;
+
   // Reco information CV
   double Ev_reco, Elep_reco;
   int reco_numu, reco_nue, reco_nc, reco_q;

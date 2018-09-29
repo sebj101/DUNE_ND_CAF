@@ -20,7 +20,7 @@ def loop( events, tgeo, tout, nfiles, okruns ):
     # updated geometry with less steel
     offset = [ 0., 305., 5. ]
     fvLo = [ -300., -100., 50. ]
-    fvHi = [ 300., 100., 350. ]
+    fvHi = [ 300., 100., 450. ]
     collarLo = [ -320., -120., 30. ]
     collarHi = [ 320., 120., 470. ]
 
@@ -68,14 +68,14 @@ def loop( events, tgeo, tout, nfiles, okruns ):
             for i in range(3): 
                 t_vtx[i] = vertex.Position[i] / 10. - offset[i] # cm
 
-            # fiducial vertex cut
-            fvCut = False
-            for i in range(3):
-                if t_vtx[i] < fvLo[i] or t_vtx[i] > fvHi[i]:
-                    fvCut = True
-            vtxv = ROOT.TVector3( t_vtx[0], t_vtx[1], t_vtx[2] )
-            if fvCut:
-                continue
+            # fiducial vertex cut -- don't do it
+            #fvCut = False
+            #for i in range(3):
+            #    if t_vtx[i] < fvLo[i] or t_vtx[i] > fvHi[i]:
+            #        fvCut = True
+            #vtxv = ROOT.TVector3( t_vtx[0], t_vtx[1], t_vtx[2] )
+            #if fvCut:
+            #    continue
 
             ileptraj = -1
             nfsp = 0

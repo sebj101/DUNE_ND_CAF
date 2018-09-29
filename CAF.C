@@ -49,6 +49,10 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "nNucleus", &nNucleus, "nNucleus/I" );
   cafMVA->Branch( "nUNKNOWN", &nUNKNOWN, "nUNKNOWN/I" );
 
+  cafMVA->Branch( "vtx_x", &vtx_x, "vtx_x/D" );
+  cafMVA->Branch( "vtx_y", &vtx_y, "vtx_y/D" );
+  cafMVA->Branch( "vtx_z", &vtx_z, "vtx_z/D" );
+
   cafMVA->Branch( "Ev_reco", &Ev_reco, "Ev_reco/D" );
   cafMVA->Branch( "Elep_reco", &Elep_reco, "Elep_reco/D" );
   cafMVA->Branch( "reco_numu", &reco_numu, "reco_numu/I" );

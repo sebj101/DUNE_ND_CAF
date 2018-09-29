@@ -210,10 +210,14 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       current_file = ifileNo;
     }
 
-    // fiducial vertex cut
-    if( vtx[0] < -300. || vtx[0] > 300. ) continue;
-    if( vtx[1] < -100. || vtx[1] > 100. ) continue;
-    if( vtx[2] <   50. || vtx[2] > 350. ) continue;
+    // fiducial vertex pre-cut?
+    //if( vtx[0] < -300. || vtx[0] > 300. ) continue;
+    //if( vtx[1] < -100. || vtx[1] > 100. ) continue;
+    //if( vtx[2] <   50. || vtx[2] > 450. ) continue;
+
+    caf.vtx_x = vtx[0];
+    caf.vtx_y = vtx[1];
+    caf.vtx_z = vtx[2]; 
 
     // configuration variables in CAF file; we don't use mvaresult so just set it to zero
     caf.run = par.run;
@@ -330,9 +334,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
         decayPi0( pi0, g1, g2 );
         double g1conv = rando->Exp( 14. ); // conversion distance
-        bool compton = (rando->Rndm() < 0.05); // dE/dX misID probability for photon
+        bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
         // if energetic gamma converts in first wire, and other gamma is either too soft or too colinear
-        if( g1conv < 0.3 && compton && (g2.Mag() < 30. || g1.Angle(g2) < 0.01) ) electrons++;
+        if( g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01) ) electrons++;
         electron_energy = g1.Mag();
       }
     }
@@ -432,7 +436,7 @@ int main( int argc, char const *argv[] )
   par.em_const = 0.03; // EM energy resolution constant term: A + B/sqrt(E) (GeV)
   par.em_sqrtE = 0.1; // EM energy resolution 1/sqrt(E) term: A + B/sqrt(E) (GeV)
   par.michelEff = 0.75; // Michel finder efficiency
-  par.CC_trk_length = 250.; // minimum track length for CC in cm
+  par.CC_trk_length = 100.; // minimum track length for CC in cm
 
   int i = 0;
   while( i < argc ) {
