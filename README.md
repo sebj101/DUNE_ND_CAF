@@ -1,24 +1,29 @@
 # DUNE_ND_CAF
 Make DUNE near detector CAFs
 
-Requires edep-sim Geant4 package (https://github.com/ClarkMcGrew/edep-sim), and DUNE reweighting framework nusyst (https://github.com/luketpickering/nusyst). Both are easy to build at Fermilab. Setup script uses Fermilab ups, version for LBL NERSC forthcoming.
+% git clone https://github.com/cmmarshall/DUNE_ND_CAF.git
+% cd DUNE_ND_CAF
+% export NDCAF=`pwd`
+% git clone https://github.com/luketpickering/nusystematics.git
 
-Usage:
+Set up the environment using setup_nd_cafmaker.sh
+% source setup_nd_cafmaker.sh
 
-dumpTree.py
-Reads in edep-sim output file and produces flat ROOT tree with information necessary to make CAFs.
+Build nusystematics with cmake (which will build dependent systematicstools)
+% cd nusystematics
+% mkdir build; cd build
+% cmake ../ -DUSEART=0 -DLIBXML2_LIB=/cvmfs/larsoft.opensciencegrid.org/products/libxml2/v2_9_5/Linux64bit+2.6-2.12-prof/lib/ -DLIBXML2_INC=/cvmfs/larsoft.opensciencegrid.org/products/libxml2/v2_9_5/Linux64bit+2.6-2.12-prof/include/libxml2 -DPYTHIA6=/cvmfs/larsoft.opensciencegrid.org/products/pythia/v6_4_28i/Linux64bit+2.6-2.12-gcc640-prof/lib
+% make
+% make install
 
-python dumpTree.py --topdir /path/to/edep-sim/output/files \
-                   --outfile /path/to/output/filename.root \
-                   --first_run X \
-                   --last_run Y
-Note it assumes a particular format of edep-sim files, which you can see from looking at the code. Will look for typeinfo for edep-sim classes and create it in a directory called EDepSimEvents using TFile::MakeProject. There is an optional flag --rhc to run in RHC mode
+Add nusystematics stuff to LD_LIBRARY_PATH
+Note: this should be done every time, so you probably want to add these lines to a setup script
+% export NUSYST=$NDCAF/nusystematics
+% export LD_LIBRARY_PATH=$NUSYST/build/Linux/lib:$LD_LIBRARY_PATH
+% export LD_LIBRARY_PATH=$NUSYST/build/nusystematics/artless:$LD_LIBRARY_PATH
 
-makeCAF
-Compile with the Makefile provided, which requires some environment variables that are created by the setup script. 
+You also need edep-sim to run the Geant4 stage, and also to make the intermediate TTree that is used by makeCAF.
+Install edep-sim by following the instructions in the README found here:
+https://github.com/ClarkMcGrew/edep-sim
+There is a build script that just works in my experience.
 
-./makeCAF --edepfile /path/to/output/from/dumpTree/file.root \
-          --ghepdir /path/to/genie/ghep/files \
-          --outfile /path/to/CAF/file/CAF.root \
-          --fhicl /path/to/fhicl/file/with/DUNErw
-Optionally you can set the random number seed with --seed for reproduceability, and --rhc for RHC mode. The fhicl file is what configures DUNErw shifts, using nusyst. Branches are generated automatically based on the configuration in that file.
