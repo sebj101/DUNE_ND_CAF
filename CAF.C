@@ -49,6 +49,7 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "nNucleus", &nNucleus, "nNucleus/I" );
   cafMVA->Branch( "nUNKNOWN", &nUNKNOWN, "nUNKNOWN/I" );
 
+  cafMVA->Branch( "det_x", &det_x, "det_x/D" );
   cafMVA->Branch( "vtx_x", &vtx_x, "vtx_x/D" );
   cafMVA->Branch( "vtx_y", &vtx_y, "vtx_y/D" );
   cafMVA->Branch( "vtx_z", &vtx_z, "vtx_z/D" );

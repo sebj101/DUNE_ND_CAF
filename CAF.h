@@ -29,6 +29,7 @@ public:
 
   // vertex -- smear it?
   double vtx_x, vtx_y, vtx_z;
+  double det_x;
 
   // Reco information CV
   double Ev_reco, Elep_reco;

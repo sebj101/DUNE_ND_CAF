@@ -13,6 +13,7 @@ const double mmu = 0.1056583745;
 
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
+  double OA_xcoord;
   bool fhc, grid;
   int seed, run, subrun, first, n;
   double trk_muRes, LAr_muRes, ECAL_muRes;
@@ -218,6 +219,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.vtx_x = vtx[0];
     caf.vtx_y = vtx[1];
     caf.vtx_z = vtx[2]; 
+    caf.det_x = par.OA_xcoord;
 
     // configuration variables in CAF file; we don't use mvaresult so just set it to zero
     caf.run = par.run;
@@ -423,6 +425,7 @@ int main( int argc, char const *argv[] )
 
   // Make parameter object and set defaults
   params par;
+  par.OA_xcoord = 0.; // on-axis by default
   par.fhc = true;
   par.grid = false;
   par.seed = 7; // a very random number
@@ -461,6 +464,9 @@ int main( int argc, char const *argv[] )
       i += 2;
     } else if( argv[i] == std::string("--first") ) {
       par.first = atoi(argv[i+1]);
+      i += 2;
+    } else if( argv[i] == std::string("--oa") ) {
+      par.OA_xcoord = atof(argv[i+1]);
       i += 2;
     } else if( argv[i] == std::string("--grid") ) {
       par.grid = true;
