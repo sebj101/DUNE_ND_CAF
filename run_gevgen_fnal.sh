@@ -71,7 +71,7 @@ mv gevgen/* .
 
 # Get flux files to local node
 chmod +x copy_dune_ndtf_flux
-./copy_dune_ndtf_flux --dk2nu --outpath local_flux_files --flavor ${MODE} --base opt_03 --maxmb=60
+./copy_dune_ndtf_flux --top /pnfs/dune/persistent/users/dbrailsf/flux/nd/gsimple/v2_8_6d --outpath local_flux_files --flavor ${MODE} --base OptimizedEngineeredNov2017 --maxmb=60
 
 ####################
 
@@ -83,7 +83,7 @@ export GNUMIXML="GNuMIFlux.xml"
 ## Run GENIE and copy output file to dCache persistent
 
 gevgen_fnal \
-    -f local_flux_files/*.dk2nu.root,DUNEND \
+    -f local_flux_files/gsimple*.root,DUNEND \
     -g ${GEOMETRY}.gdml \
     -t ${TOPVOL} \
     -m ${GEOMETRY}.${TOPVOL}.maxpl.xml \
