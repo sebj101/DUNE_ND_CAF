@@ -26,6 +26,7 @@ public:
   double Ev, Q2, W, X, Y, NuMomX, NuMomY, NuMomZ, LepMomX, LepMomY, LepMomZ, LepE, LepNuAngle;
   // True particle counts
   int nP, nN, nipip, nipim, nipi0, nikp, nikm, nik0, niem, niother, nNucleus, nUNKNOWN;
+  double eP, eN, ePip, ePim, ePi0, eOther;
 
   // vertex -- smear it?
   double vtx_x, vtx_y, vtx_z;
@@ -40,14 +41,15 @@ public:
   // reweights -- make sure big enough to hold all the variations for each knob, and all the knobs
   // the names, and what they actually mean, are determined automatically from the fhicl input file
   int nwgt[100];
+  double cvwgt[100];
   double wgt[100][100];
 
   // meta
   double pot;
   int meta_run, meta_subrun;
+  int version;
 
   TFile * cafFile;
-  TDirectory * mvaselect;
   TTree * cafMVA;
   TTree * cafPOT;
 };

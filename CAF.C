@@ -6,10 +6,8 @@
 CAF::CAF( std::string filename )
 {
   cafFile = new TFile( filename.c_str(), "RECREATE" );
-  mvaselect = cafFile->mkdir( "mvaselect" );
-  mvaselect->cd();
-  cafMVA = new TTree( "MVASelection", "MVASelection" );
-  cafPOT = new TTree( "pottree", "pottree" );
+  cafMVA = new TTree( "caf", "caf" );
+  cafPOT = new TTree( "meta", "meta" );
 
   cafMVA->Branch( "run", &run, "run/I" );
   cafMVA->Branch( "subrun", &subrun, "subrun/I" );
@@ -49,6 +47,13 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "nNucleus", &nNucleus, "nNucleus/I" );
   cafMVA->Branch( "nUNKNOWN", &nUNKNOWN, "nUNKNOWN/I" );
 
+  cafMVA->Branch("eP",        &eP,         "eP/D");
+  cafMVA->Branch("eN",        &eN,         "eN/D");
+  cafMVA->Branch("ePip",      &ePip,       "ePip/D");
+  cafMVA->Branch("ePim",      &ePim,       "ePim/D");
+  cafMVA->Branch("ePi0",      &ePi0,       "ePi0/D");
+  cafMVA->Branch("eOther",    &eOther,     "eOther/D");
+
   cafMVA->Branch( "det_x", &det_x, "det_x/D" );
   cafMVA->Branch( "vtx_x", &vtx_x, "vtx_x/D" );
   cafMVA->Branch( "vtx_y", &vtx_y, "vtx_y/D" );
@@ -69,6 +74,7 @@ CAF::CAF( std::string filename )
   cafPOT->Branch( "pot", &pot, "pot/D" );
   cafPOT->Branch( "run", &meta_run, "run/I" );
   cafPOT->Branch( "subrun", &meta_subrun, "subrun/I" );
+  cafPOT->Branch( "version", &version, "version/I" );
 }
 
 CAF::~CAF() {}
@@ -87,12 +93,13 @@ void CAF::Print()
 
 void CAF::fillPOT()
 {
+  printf( "Filling metadata\n" );
   cafPOT->Fill();
 }
 
 void CAF::write()
 {
-  mvaselect->cd();
+  cafFile->cd();
   cafMVA->Write();
   cafPOT->Write();
 }
@@ -100,6 +107,7 @@ void CAF::write()
 void CAF::addRWbranch( int parId, std::string name, std::vector<double> &vars )
 {
   cafMVA->Branch( Form("%s_nshifts", name.c_str()), &nwgt[parId], Form("%s_nshifts/I", name.c_str()) );
+  cafMVA->Branch( Form("%s_cvwgt", name.c_str()), &cvwgt[parId], Form("%s_cvwgt/D", name.c_str()) );
   cafMVA->Branch( Form("wgt_%s", name.c_str()), wgt[parId], Form("wgt_%s[%s_nshifts]/D", name.c_str(), name.c_str()) );
 }
 

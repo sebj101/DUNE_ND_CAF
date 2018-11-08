@@ -257,22 +257,29 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.niother = 0;
     caf.nNucleus = 0;
     caf.nUNKNOWN = 0; // there is an "other" category so this never gets used
+    caf.eP = 0.;
+    caf.eN = 0.;
+    caf.ePip = 0.;
+    caf.ePim = 0.;
+    caf.ePi0 = 0.;
+    caf.eOther = 0.;
     for( int i = 0; i < nFS; ++i ) {
+      double ke = fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
       if( fsPdg[i] == caf.LepPDG ) {
         lepP4.SetPxPyPzE( fsPx[i]*0.001, fsPy[i]*0.001, fsPz[i]*0.001, fsE[i]*0.001 );
         caf.LepE = fsE[i]*0.001;
       }
-      else if( fsPdg[i] == 2212 ) caf.nP++;
-      else if( fsPdg[i] == 2112 ) caf.nN++;
-      else if( fsPdg[i] ==  211 ) caf.nipip++;
-      else if( fsPdg[i] == -211 ) caf.nipim++;
-      else if( fsPdg[i] ==  111 ) caf.nipi0++;
-      else if( fsPdg[i] ==  321 ) caf.nikp++;
-      else if( fsPdg[i] == -321 ) caf.nikm++;
-      else if( fsPdg[i] == 311 || fsPdg[i] == -311 || fsPdg[i] == 130 || fsPdg[i] == 310 ) caf.nik0++;
-      else if( fsPdg[i] ==   22 ) caf.niem++;
+      else if( fsPdg[i] == 2212 ) {caf.nP++; caf.eP += ke;}
+      else if( fsPdg[i] == 2112 ) {caf.nN++; caf.eN += ke;}
+      else if( fsPdg[i] ==  211 ) {caf.nipip++; caf.ePip += ke;}
+      else if( fsPdg[i] == -211 ) {caf.nipim++; caf.ePim += ke;}
+      else if( fsPdg[i] ==  111 ) {caf.nipi0++; caf.ePi0 += ke;}
+      else if( fsPdg[i] ==  321 ) {caf.nikp++; caf.eOther += ke;}
+      else if( fsPdg[i] == -321 ) {caf.nikm++; caf.eOther += ke;}
+      else if( fsPdg[i] == 311 || fsPdg[i] == -311 || fsPdg[i] == 130 || fsPdg[i] == 310 ) {caf.nik0++; caf.eOther += ke;}
+      else if( fsPdg[i] ==   22 ) {caf.niem++; caf.eOther += ke;}
       else if( fsPdg[i] > 1000000000 ) caf.nNucleus++;
-      else caf.niother++;
+      else {caf.niother++; caf.eOther += ke;}
     }
 
     // true 4-momentum transfer
@@ -301,9 +308,10 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     // }
     // typedef std::vector<ParamResponses> event_unit_response_t;
 
-    systtools::event_unit_response_t resp = rh.GetEventResponses(*event);
-    for( systtools::event_unit_response_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
+    nusyst::event_unit_response_cv_weight_t resp = rh.GetEventResponseAndCVWeight(*event);
+    for( nusyst::event_unit_response_cv_weight_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
       caf.nwgt[(*it).pid] = (*it).responses.size();
+      caf.cvwgt[(*it).pid] = (*it).CV_weight;
       for( unsigned int i = 0; i < (*it).responses.size(); ++i ) {
         caf.wgt[(*it).pid][i] = (*it).responses[i];
       }
@@ -402,10 +410,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   caf.meta_subrun = par.subrun;
   // FHC events per ton per POT 1.41213e-15
   // RHC events per ton per POT 5.60088e-16
-  caf.pot = ( par.fhc ? N/(25.2*1.41213e-15) : N/(25.2*5.60088e-16) );
-  printf( "Run %d POT %g\n", caf.meta_run, caf.pot );
-  caf.fillPOT();
-  caf.write();
+  // 147 tons is 7 x 3 x 5 detector
+  caf.pot = ( par.fhc ? N/(147*1.41213e-15) : N/(147*5.60088e-16) );
 
 }
 
@@ -493,5 +499,15 @@ int main( int argc, char const *argv[] )
   TTree * tree = (TTree*) tf->Get( "tree" );
 
   loop( caf, par, tree, ghepdir, fhicl_filename );
+
+  caf.version = 1;
+  printf( "Run %d POT %g\n", caf.meta_run, caf.pot );
+  caf.fillPOT();
+  caf.write();
+
+  caf.cafFile->Close();
+
+  printf( "-30-\n" );
+
 
 }
