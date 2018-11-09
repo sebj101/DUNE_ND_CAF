@@ -302,16 +302,10 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     // Add DUNErw weights to the CAF
 
-    // struct ParamResponses { 
-    //   paramId_t pid;
-    //   std::vector<double> responses;
-    // }
-    // typedef std::vector<ParamResponses> event_unit_response_t;
-
-    nusyst::event_unit_response_cv_weight_t resp = rh.GetEventResponseAndCVWeight(*event);
-    for( nusyst::event_unit_response_cv_weight_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
+    nusyst::event_unit_response_w_cv_t resp = rh.GetEventVariationResponseAndCVResponse(*event);
+    for( nusyst::event_unit_response_w_cv_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
       caf.nwgt[(*it).pid] = (*it).responses.size();
-      caf.cvwgt[(*it).pid] = (*it).CV_weight;
+      caf.cvwgt[(*it).pid] = (*it).CV_response;
       for( unsigned int i = 0; i < (*it).responses.size(); ++i ) {
         caf.wgt[(*it).pid][i] = (*it).responses[i];
       }
