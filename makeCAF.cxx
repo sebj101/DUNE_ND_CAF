@@ -180,7 +180,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
-    caf.addRWbranch( parIds[i], head.prettyName, head.paramVariations );
+    std::string wgt_var = ( head.isWeightSystematicVariation ? "wgt" : "var" );
+    caf.addRWbranch( parIds[i], head.prettyName, wgt_var, head.paramVariations );
   }
 
   // Main event loop
@@ -302,8 +303,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     // Add DUNErw weights to the CAF
 
-    nusyst::event_unit_response_w_cv_t resp = rh.GetEventVariationResponseAndCVResponse(*event);
-    for( nusyst::event_unit_response_w_cv_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
+    systtools::event_unit_response_w_cv_t resp = rh.GetEventVariationAndCVResponse(*event);
+    for( systtools::event_unit_response_w_cv_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
       caf.nwgt[(*it).pid] = (*it).responses.size();
       caf.cvwgt[(*it).pid] = (*it).CV_response;
       for( unsigned int i = 0; i < (*it).responses.size(); ++i ) {

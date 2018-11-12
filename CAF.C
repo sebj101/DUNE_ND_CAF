@@ -104,11 +104,11 @@ void CAF::write()
   cafPOT->Write();
 }
 
-void CAF::addRWbranch( int parId, std::string name, std::vector<double> &vars )
+void CAF::addRWbranch( int parId, std::string name, std::string wgt_var, std::vector<double> &vars )
 {
   cafMVA->Branch( Form("%s_nshifts", name.c_str()), &nwgt[parId], Form("%s_nshifts/I", name.c_str()) );
-  cafMVA->Branch( Form("%s_cvwgt", name.c_str()), &cvwgt[parId], Form("%s_cvwgt/D", name.c_str()) );
-  cafMVA->Branch( Form("wgt_%s", name.c_str()), wgt[parId], Form("wgt_%s[%s_nshifts]/D", name.c_str(), name.c_str()) );
+  cafMVA->Branch( Form("%s_cv%s", name.c_str(), wgt_var.c_str()), &cvwgt[parId], Form("%s_cv%s/D", name.c_str(), wgt_var.c_str()) );
+  cafMVA->Branch( Form("%s_%s", wgt_var.c_str(), name.c_str()), wgt[parId], Form("%s_%s[%s_nshifts]/D", wgt_var.c_str(), name.c_str(), name.c_str()) );
 }
 
 #endif

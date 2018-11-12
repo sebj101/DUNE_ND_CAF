@@ -12,7 +12,7 @@ public:
   void fill();
   void fillPOT();
   void write();
-  void addRWbranch( int parId, std::string name, std::vector<double> &vars );
+  void addRWbranch( int parId, std::string name, std::string wgt_var, std::vector<double> &vars );
   void Print();
 
   // Make ntuple variables public so they can be set from other file

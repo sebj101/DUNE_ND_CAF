@@ -41,8 +41,8 @@ RHC=" --rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/marshalc/CAF"
-DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dump"
-CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAF"
+DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpNewFlux"
+CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFNewFlux"
 STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
@@ -77,16 +77,16 @@ echo "Copying input files for runs ${FIRSTRUN} to ${LASTRUN}..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
   RDIR=0$((${RUN} / 1000))
-  ifdh ls ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root > ls1.txt
-  ifdh ls ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root > ls2.txt
+  ifdh ls ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root > ls1.txt
+  ifdh ls ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root > ls2.txt
   if [ -s ls1.txt ] && [ -s ls2.txt ]; then
-    echo "${CP} ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root"
-    ${CP} ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
-    echo "${CP} ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root"
-    ${CP} ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
+    echo "${CP} ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root"
+    ${CP} ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
+    echo "${CP} ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root"
+    ${CP} ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
   else 
-    echo "OOPS! Could not find: ${INPUTTOP}/edep/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
-    echo "  or maybe it was:    ${INPUTTOP}/genie/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
+    echo "OOPS! Could not find: ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+    echo "  or maybe it was:    ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
   fi
 done
 
@@ -99,6 +99,9 @@ tar xzf DUNE_ND_CAF.tar.gz
 mv DUNE_ND_CAF/* .
 #export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:${PWD}/nusyst/artless
+
+${CP} ${INPUTTOP}/nusyst_inputs.V00_02.tar.gz nusyst_inputs.tar.gz
+tar xzf nusyst_inputs.tar.gz
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
