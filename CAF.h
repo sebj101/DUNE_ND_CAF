@@ -43,6 +43,7 @@ public:
   int nwgt[100];
   double cvwgt[100];
   double wgt[100][100];
+  bool iswgt[100];
 
   // meta
   double pot;

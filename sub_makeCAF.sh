@@ -111,7 +111,7 @@ python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN
 ## Run makeCAF
 echo "Running makeCAF..."
 echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} --grid ${RHC}"
-./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${PROCESS} ${RHC} --grid
+./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl ./fhicl.fcl --seed ${PROCESS} ${RHC} --grid
 
 ## copy outputs
 echo "Copying outputs..."

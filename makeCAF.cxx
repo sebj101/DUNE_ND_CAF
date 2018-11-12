@@ -180,8 +180,10 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
-    std::string wgt_var = ( head.isWeightSystematicVariation ? "wgt" : "var" );
+    bool is_wgt = head.isWeightSystematicVariation;
+    std::string wgt_var = ( is_wgt ? "wgt" : "var" );
     caf.addRWbranch( parIds[i], head.prettyName, wgt_var, head.paramVariations );
+    caf.iswgt[parIds[i]] = is_wgt;
   }
 
   // Main event loop
@@ -191,6 +193,15 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     tree->GetEntry(ii);
     if( ii % 100 == 0 ) printf( "Event %d of %d...\n", ii, N );
+
+    // set defaults
+    for( int j = 0; j < 100; ++j ) {
+      caf.nwgt[j] = 7;
+      caf.cvwgt[j] = ( caf.iswgt[j] ? 1. : 0. );
+      for( unsigned int k = 0; k < 100; ++k ) {
+        caf.wgt[j][k] = ( caf.iswgt[j] ? 1. : 0. );
+      }
+    }
 
     // make sure ghep file matches the current one, otherwise update to the current ghep file
     if( ifileNo != current_file ) {
