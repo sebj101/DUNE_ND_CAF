@@ -330,8 +330,10 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     double longest_mip = 0.;
     double longest_mip_KE = 0.;
     int longest_mip_charge = 0;
+    caf.reco_lepton_pdg = 0;
     int electrons = 0;
     double electron_energy = 0.;
+    int reco_electron_pdg = 0;
     for( int i = 0; i < nFS; ++i ) {
       int pdg = fsPdg[i];
       double p = sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
@@ -340,6 +342,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       if( (abs(pdg) == 13 || abs(pdg) == 211) && fsTrkLen[i] > longest_mip ) {
         longest_mip = fsTrkLen[i];
         longest_mip_KE = KE;
+        caf.reco_lepton_pdg = pdg;
         if( pdg == 13 || pdg == -211 ) longest_mip_charge = -1;
         else longest_mip_charge = 1;
       }
@@ -354,12 +357,15 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         // if energetic gamma converts in first wire, and other gamma is either too soft or too colinear
         if( g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01) ) electrons++;
         electron_energy = g1.Mag();
+        reco_electron_pdg = 111;
       }
     }
 
     // True CC reconstruction
     if( abs(lepPdg) == 11 ) { // true nu_e
       recoElectron( caf, par );
+      electrons++;
+      reco_electron_pdg = lepPdg;
     } else if( abs(lepPdg) == 13 ) { // true nu_mu
       if     ( muonReco == 2 ) recoMuonTracker( caf, par ); // gas TPC match
       else if( muonReco == 1 ) recoMuonLAr( caf, par ); // LAr-contained muon, this might get updated to NC...
@@ -383,12 +389,14 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       caf.reco_q = 0;
       caf.reco_numu = 0; caf.reco_nue = 1; caf.reco_nc = 0;
       caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+      caf.reco_lepton_pdg = reco_electron_pdg;
     } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < par.CC_trk_length || longest_mip_KE/longest_mip > 3.) ) { 
       // reco as NC
       caf.Elep_reco = 0.;
       caf.reco_q = 0;
       caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
       caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+      caf.reco_lepton_pdg = 0;
     } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > par.CC_trk_length && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
       caf.Elep_reco = longest_mip_KE*0.001 + mmu;
       if( par.fhc ) caf.reco_q = -1;

@@ -29,10 +29,10 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "LepMomZ", &LepMomZ, "LepMomZ/D" );
   cafMVA->Branch( "LepE", &LepE, "LepE/D" );
   cafMVA->Branch( "LepNuAngle", &LepNuAngle, "LepNuAngle/D" );
-  cafMVA->Branch( "Q2", &Q2, "Ev/D" );
-  cafMVA->Branch( "W", &W, "Ev/D" );
-  cafMVA->Branch( "X", &X, "Ev/D" );
-  cafMVA->Branch( "Y", &Y, "Ev/D" );
+  cafMVA->Branch( "Q2", &Q2, "Q2/D" );
+  cafMVA->Branch( "W", &W, "W/D" );
+  cafMVA->Branch( "X", &X, "X/D" );
+  cafMVA->Branch( "Y", &Y, "Y/D" );
 
   cafMVA->Branch( "nP", &nP, "nP/I" );
   cafMVA->Branch( "nN", &nN, "nN/I" );
@@ -69,6 +69,7 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "muon_tracker", &muon_tracker, "muon_tracker/I" );
   cafMVA->Branch( "muon_ecal", &muon_ecal, "muon_ecal/I" );
   cafMVA->Branch( "muon_exit", &muon_exit, "muon_exit/I" );
+  cafMVA->Branch( "reco_lepton_pdg", &reco_lepton_pdg, "reco_lepton_pdg/I" );
   cafMVA->Branch( "Ehad_veto", &Ehad_veto, "Ehad_veto/D" );
 
   cafPOT->Branch( "pot", &pot, "pot/D" );

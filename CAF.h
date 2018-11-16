@@ -35,7 +35,7 @@ public:
   // Reco information CV
   double Ev_reco, Elep_reco;
   int reco_numu, reco_nue, reco_nc, reco_q;
-  int muon_contained, muon_tracker, muon_ecal, muon_exit;
+  int muon_contained, muon_tracker, muon_ecal, muon_exit, reco_lepton_pdg;
   double Ehad_veto;
 
   // reweights -- make sure big enough to hold all the variations for each knob, and all the knobs
