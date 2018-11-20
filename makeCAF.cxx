@@ -276,7 +276,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.ePi0 = 0.;
     caf.eOther = 0.;
     for( int i = 0; i < nFS; ++i ) {
-      double ke = fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
+      double ke = 0.01*(fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]));
       if( fsPdg[i] == caf.LepPDG ) {
         lepP4.SetPxPyPzE( fsPx[i]*0.001, fsPy[i]*0.001, fsPz[i]*0.001, fsE[i]*0.001 );
         caf.LepE = fsE[i]*0.001;
