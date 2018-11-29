@@ -9,6 +9,18 @@
 #include <math.h>
 #include "CAF.C"
 
+// genie includes
+#include "EVGCore/EventRecord.h"
+#include "GHEP/GHepParticle.h"
+#include "Ntuple/NtpMCFormat.h"
+#include "Ntuple/NtpMCTreeHeader.h"
+#include "Ntuple/NtpMCEventRecord.h"
+#include "PDG/PDGCodes.h"
+#include "Utils/CmdLnArgParser.h"
+#include "Conventions/Units.h"
+
+using namespace genie;
+
 const double me  = 0.511E-3; // GeV
 const double mmu = 0.10537; // GeV
 
@@ -66,10 +78,53 @@ void decayPi0( TLorentzVector pi0, TVector3 &gamma1, TVector3 &gamma2, TRandom3 
   gamma2.RotateUz( pi0dir );
 }
 
+void RotateZu( TVector3 &v, TVector3 uu )
+{
+
+  // new z axis
+  TVector3 u = uu.Unit();
+  double u1 = u.x();
+  double u2 = u.y();
+  double u3 = u.z();
+  double up = u1*u1 + u2*u2;
+
+  // new components
+  double fX = v.x();
+  double fY = v.y();
+  double fZ = v.z();
+  if( up ) {
+    up = TMath::Sqrt(up);
+    // old vector components
+    double px = v.x();
+    double py = v.y();
+    double pz = v.z();
+
+    // for RotateUz
+    //fX = (u1*u3*px - u2*py + u1*up*pz)/up;
+    //fY = (u2*u3*px + u1*py + u2*up*pz)/up;
+    //fZ = (u3*u3*px -    px + u3*up*pz)/up;
+
+    fX = (-u2*px   + u1*py)/up;
+    fY = -(u1*u3*px + u2*u3*py - up*up*pz)/up;
+    fZ = (u1*(1.-u3*u3)*px + u2*(1.-u3*u3)*py + u3*up*up*pz)/(up*up);
+
+  } else if( u3 < 0. ) { // theta == pi, phi == 0
+    fX = -fX;
+    fZ = -fZ;
+  } else {
+    printf( "Can't rotate the vector\n" );
+  }
+
+  v.SetXYZ( fX, fY, fZ );
+}
+
 void loop( TTree * tree, int cat, CAF &caf )
 {
 
   TRandom3 * rando = new TRandom3(12345);
+
+  // midpoint of the decay pipe, relative to detector center at (0,0,0)
+  TVector3 origin(0., 4823.6, -46048.);
 
   // initialize variable resolutions
   TF1 * esmear = new TF1( "esmear", "0.03 + 0.05*pow(x,-0.5)", 0., 999.9 );
@@ -77,37 +132,10 @@ void loop( TTree * tree, int cat, CAF &caf )
 
   // Signal
   if( cat == 0 ) {
-    // event variables
-    int evtNo, nfsp;
-    double Enu, vtx_x, vtx_y, vtx_z, nu_thetaX, nu_thetaY;
-
-    // particle variables
-    int pdg[100];
-    double E[100];
-    //double px[100], py[100], pz[100];
-    double perf_px[100], perf_py[100], perf_pz[100];
-    double best_px[100], best_py[100], best_pz[100];
-
-    tree->SetBranchAddress( "evt", &evtNo );
-    tree->SetBranchAddress( "Enu", &Enu );
-    tree->SetBranchAddress( "vtx_x", &vtx_x );
-    tree->SetBranchAddress( "vtx_y", &vtx_y );
-    tree->SetBranchAddress( "vtx_z", &vtx_z );
-    tree->SetBranchAddress( "nu_thetaX", &nu_thetaX );
-    tree->SetBranchAddress( "nu_thetaY", &nu_thetaY );
-    tree->SetBranchAddress( "nfsp", &nfsp );
-    tree->SetBranchAddress( "pdg", pdg );
-    //tree->SetBranchAddress( "px", px );
-    //tree->SetBranchAddress( "py", py );
-    //tree->SetBranchAddress( "pz", pz );
-    tree->SetBranchAddress( "perf_px", perf_px );
-    tree->SetBranchAddress( "perf_py", perf_py );
-    tree->SetBranchAddress( "perf_pz", perf_pz );
-    tree->SetBranchAddress( "best_px", best_px );
-    tree->SetBranchAddress( "best_py", best_py );
-    tree->SetBranchAddress( "best_pz", best_pz );
-    tree->SetBranchAddress( "E", E );
   
+    NtpMCEventRecord * mcrec = 0;
+    tree->SetBranchAddress("gmcrec", &mcrec);
+
     int N = tree->GetEntries();
 
     // loop over events
@@ -123,22 +151,10 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.isCC = 0;
       caf.mode = 7; // nu+e
       caf.LepPDG = 11; 
-      caf.Ev = Enu;
-      caf.Q2 = 0.;
-      caf.W = 0.;
-      caf.X = 0.;
-      caf.Y = 0.;
-      caf.NuMomX = Enu*sin(nu_thetaX);
-      caf.NuMomY = Enu*sin(nu_thetaY);
-      caf.NuMomZ = sqrt( Enu*Enu - caf.NuMomX*caf.NuMomX - caf.NuMomY-caf.NuMomY );
 
       caf.nP = 0; caf.nN = 0; caf.nipip = 0; caf.nipi0 = 0; caf.nikm = 0; caf.nik0 = 0; 
       caf.niem = 0; caf.niother = 0; caf.nNucleus = 0; caf.nUNKNOWN = 0;
       caf.eP = 0.; caf.eN = 0.; caf.ePip = 0.; caf.ePi0 = 0.; caf.eOther = 0.;
-
-      caf.vtx_x = vtx_x;
-      caf.vtx_y = vtx_y;
-      caf.vtx_z = vtx_z;
 
       // nonsense variables
       caf.reco_numu = 0;
@@ -149,84 +165,97 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.reco_lepton_pdg = 11;
       caf.pileup_energy = 0.;
 
-      // loop over final-state particles
-      for( int i = 0; i < nfsp; ++i ) {
+      // get the GENIE event
+      EventRecord &  event = *(mcrec->event);
+      Interaction *in = event.Summary();
 
-        if( pdg[i] == 11 ) {
-          double Ttrue = E[i] - me;
+      TLorentzVector lep = in->Kine().FSLeptonP4();
+      TLorentzVector nu = *(in->InitState().GetProbeP4(kRfLab));
+      TVector3 nudir = nu.Vect().Unit();
+      TLorentzVector q = nu-lep;
 
-          double best_thetaX = 1000.*atan( best_px[i] / best_pz[i] );
-          double best_thetaY = 1000.*atan( best_py[i] / best_pz[i] );
+      caf.NuMomX = nu.X();
+      caf.NuMomY = nu.Y();
+      caf.NuMomZ = nu.Z();
 
-          double evalEsmear = esmear->Eval(Ttrue);
-          if( evalEsmear < 0. ) evalEsmear = 0.;
+      // interaction-level variables
+      caf.X = -q.Mag2()/(2*0.939*q.E());
+      caf.Y = q.E() / nu.E();
+      caf.Q2 = -q.Mag2();
+      caf.W = sqrt(0.939*0.939 + 2.*q.E()*0.939 + q.Mag2());
+      caf.mode = in->ProcInfo().ScatteringTypeId();
+      caf.Ev = in->InitState().ProbeE(kRfLab);
 
-          double evalTsmear = tsmear->Eval(Ttrue);
-          if( evalTsmear < 0. ) evalTsmear = 0.;
+      // Loop over all particles in this event, fill particle variables
+      GHepParticle * p = 0;
+      TIter event_iter(&event);
 
-          double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
-          double smearx = best_thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-          double smeary = best_thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
-          double reco_theta = sqrt( smearx*smearx + smeary*smeary );
+      while((p=dynamic_cast<GHepParticle *>(event_iter.Next()))) {
 
-          // Lepton truth info
-          caf.LepMomX = perf_px[i]; // wrt true neutrino
-          caf.LepMomY = perf_py[i];
-          caf.LepMomZ = perf_pz[i];
-          caf.LepE = E[i];
-          double true_tx = atan( perf_px[i] / perf_pz[i] );
-          double true_ty = atan( perf_py[i] / perf_pz[i] );
-          caf.LepNuAngle = sqrt( true_tx*true_tx + true_ty*true_ty );
+        if( p->Status() == kIStStableFinalState ) {
+          if( p->Pdg() == 11 ) {
+            TLorentzVector vtx = *(p->X4());
+            TLorentzVector mom = *(p->P4());
+            double Ttrue = mom.E() - me;
 
-          double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
-          double reco_enu = ereco / reco_y;
+            TVector3 intpt = vtx.Vect();
+            TVector3 bestnudir = (intpt - origin).Unit();
+            TVector3 best = mom.Vect();
+            RotateZu( best, bestnudir );
 
-          // fill CAF
-          caf.Elep_reco = ereco;
-          caf.theta_reco = reco_theta;
-          caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
-          caf.Ehad_veto = 0.;
-          
-        } else if( abs(pdg[i] == 12) || abs(pdg[i]) == 14 ) {
-          caf.neutrinoPDG = pdg[i]; // actually don't know
-          caf.neutrinoPDGunosc = pdg[i];
+            TVector3 perf = mom.Vect();
+            RotateZu( perf, nudir );
+
+            double best_thetaX = 1000.*atan( best.x() / best.z() );
+            double best_thetaY = 1000.*atan( best.y() / best.z() );
+
+            double evalEsmear = esmear->Eval(Ttrue);
+            if( evalEsmear < 0. ) evalEsmear = 0.;
+
+            double evalTsmear = tsmear->Eval(Ttrue);
+            if( evalTsmear < 0. ) evalTsmear = 0.;
+
+            double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
+            double smearx = best_thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double smeary = best_thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double reco_theta = sqrt( smearx*smearx + smeary*smeary );
+
+            // Lepton truth info
+            caf.LepMomX = perf.x(); // wrt true neutrino
+            caf.LepMomY = perf.y();
+            caf.LepMomZ = perf.z();
+            caf.LepE = Ttrue;
+            caf.LepNuAngle = perf.Angle( nudir );
+
+            double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
+            double reco_enu = ereco / reco_y;
+
+            // fill CAF
+            caf.Elep_reco = ereco;
+            caf.theta_reco = reco_theta;
+            caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
+            caf.Ehad_veto = 0.;
+            caf.vtx_x = vtx.X();
+            caf.vtx_y = vtx.Y();
+            caf.vtx_z = vtx.Z();
+          } // if electron
+          else if( abs(p->Pdg()) == 12 || abs(p->Pdg()) == 14 ) {
+            caf.neutrinoPDG = p->Pdg();
+            caf.neutrinoPDGunosc = p->Pdg();
+          }
         }
-      } // fsp
-    } // evt loop
-  } // if is signal
+      }// end loop over particles 
+
+      caf.fill();
+
+      // clear current mc event record
+      mcrec->Clear();
+    }
+  }
   else { // bkg
-    // event variables
-    int evtNo, nfsp, scat;
-    double Enu, Q2, W, x, y, nu_thetaX, nu_thetaY;
-    double vtx_x, vtx_y, vtx_z;
 
-    // particle variables
-    int pdg[100];
-    double E[100];
-    double perf_px[100], perf_py[100], perf_pz[100];
-    double best_px[100], best_py[100], best_pz[100];
-
-    tree->SetBranchAddress( "evt", &evtNo );
-    tree->SetBranchAddress( "Enu", &Enu );
-    tree->SetBranchAddress( "Q2", &Q2 );
-    tree->SetBranchAddress( "W", &W );
-    tree->SetBranchAddress( "x", &x );
-    tree->SetBranchAddress( "y", &y );
-    tree->SetBranchAddress( "nfsp", &nfsp );
-    tree->SetBranchAddress( "scat", &scat );
-    tree->SetBranchAddress( "nu_thetaX", &nu_thetaX );
-    tree->SetBranchAddress( "nu_thetaY", &nu_thetaY );
-    tree->SetBranchAddress( "pdg", pdg );
-    tree->SetBranchAddress( "best_px", best_px );
-    tree->SetBranchAddress( "best_py", best_py );
-    tree->SetBranchAddress( "best_pz", best_pz );
-    tree->SetBranchAddress( "perf_px", perf_px );
-    tree->SetBranchAddress( "perf_py", perf_py );
-    tree->SetBranchAddress( "perf_pz", perf_pz );
-    tree->SetBranchAddress( "E", E );
-    tree->SetBranchAddress( "vtx_x", &vtx_x );
-    tree->SetBranchAddress( "vtx_y", &vtx_y );
-    tree->SetBranchAddress( "vtx_z", &vtx_z );
+    NtpMCEventRecord * mcrec = 0;
+    tree->SetBranchAddress("gmcrec", &mcrec);
 
     int N = tree->GetEntries();
     for( int ii = 0; ii < 10000; ++ii ) {
@@ -234,31 +263,15 @@ void loop( TTree * tree, int cat, CAF &caf )
 
       if( ii % 100000 == 0 ) printf( "Event %d of %d...\n", ii, N );
 
-      // "background" sample is the full physics list, which includes nu+e signal, which we don't want to count as background
-      if( scat == 7 ) continue;
-
       // Set basic CAF variables
       caf.run = 10 + cat;
       caf.subrun = 10 + cat;
       caf.event = ii;
-      caf.isCC = 0; // change to 1 if we find charged lepton
-      caf.mode = scat;
-      caf.Ev = Enu;
-      caf.Q2 = Q2;
-      caf.W = W;
-      caf.X = x;
-      caf.Y = y;
-      caf.NuMomX = Enu*sin(nu_thetaX);
-      caf.NuMomY = Enu*sin(nu_thetaY);
-      caf.NuMomZ = sqrt( Enu*Enu - caf.NuMomX*caf.NuMomX - caf.NuMomY-caf.NuMomY );
+      caf.isCC = 0;
 
       caf.nP = 0; caf.nN = 0; caf.nipip = 0; caf.nipi0 = 0; caf.nikm = 0; caf.nik0 = 0; 
       caf.niem = 0; caf.niother = 0; caf.nNucleus = 0; caf.nUNKNOWN = 0;
       caf.eP = 0.; caf.eN = 0.; caf.ePip = 0.; caf.ePi0 = 0.; caf.eOther = 0.;
-
-      caf.vtx_x = vtx_x;
-      caf.vtx_y = vtx_y;
-      caf.vtx_z = vtx_z;
 
       // nonsense variables
       caf.reco_numu = 0;
@@ -267,156 +280,185 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.reco_q = 0;
       caf.muon_contained = -1; caf.muon_tracker = -1; caf.muon_ecal = -1; caf.muon_exit = -1;
       caf.reco_lepton_pdg = 11;
+      caf.pileup_energy = 0.;
+
+      // get the GENIE event
+      EventRecord &  event = *(mcrec->event);
+      Interaction *in = event.Summary();
+
+      TLorentzVector lep = in->Kine().FSLeptonP4();
+      TLorentzVector nu = *(in->InitState().GetProbeP4(kRfLab));
+      TVector3 nudir = nu.Vect().Unit();
+      TLorentzVector q = nu-lep;
+
+      caf.NuMomX = nu.X();
+      caf.NuMomY = nu.Y();
+      caf.NuMomZ = nu.Z();
+
+      // interaction-level variables
+      caf.X = -q.Mag2()/(2*0.939*q.E());
+      caf.Y = q.E() / nu.E();
+      caf.Q2 = -q.Mag2();
+      caf.W = sqrt(0.939*0.939 + 2.*q.E()*0.939 + q.Mag2());
+      caf.mode = in->ProcInfo().ScatteringTypeId();
+      caf.Ev = in->InitState().ProbeE(kRfLab);
+
+      if( caf.mode == 7 ) continue; // nu+e in background file
+
+      // Loop over all particles in this event, fill particle variables
+      GHepParticle * p = 0;
+      TIter event_iter(&event);
 
       double extraE = 0.;
       int electron_candidates = 0;
       int photon_candidates = 0;
 
-      // loop over final-state particles
-      for( int i = 0; i < nfsp; ++i ) {
+      while((p=dynamic_cast<GHepParticle *>(event_iter.Next()))) {
 
-        double ke = 0.001*(E[i]*E[i] - sqrt(E[i]*E[i] - best_px[i]*best_px[i] - best_py[i]*best_py[i] - best_pz[i]*best_pz[i]));
-        if( abs(pdg[i]) == 14 || abs(pdg[i]) == 12 ) {
-          caf.LepPDG = pdg[i];
-          caf.isCC = 0;
-          caf.neutrinoPDG = pdg[i];
-          caf.neutrinoPDGunosc = pdg[i];
+        if( p->Status() == kIStStableFinalState ) {
 
-          caf.LepMomX = perf_px[i]; // wrt true neutrino
-          caf.LepMomY = perf_py[i];
-          caf.LepMomZ = perf_pz[i];
-          caf.LepE = E[i];
-          double true_tx = atan( perf_px[i] / perf_pz[i] );
-          double true_ty = atan( perf_py[i] / perf_pz[i] );
-          caf.LepNuAngle = sqrt( true_tx*true_tx + true_ty*true_ty );
-        } else if( abs(pdg[i]) == 13 || abs(pdg[i]) == 11 ) {
-          caf.LepPDG = pdg[i];
-          caf.isCC = 1;
-          caf.neutrinoPDG = (pdg[i] > 0 ? pdg[i]+1 : pdg[i]-1);
-          caf.neutrinoPDGunosc = caf.neutrinoPDG;
+          TLorentzVector vtx = *(p->X4());
+          TLorentzVector mom = *(p->P4());
+          double ke = mom.E() - mom.M();
+          int pdg = p->Pdg();
 
-          caf.LepMomX = perf_px[i]; // wrt true neutrino
-          caf.LepMomY = perf_py[i];
-          caf.LepMomZ = perf_pz[i];
-          caf.LepE = E[i];
-          double true_tx = atan( perf_px[i] / perf_pz[i] );
-          double true_ty = atan( perf_py[i] / perf_pz[i] );
-          caf.LepNuAngle = sqrt( true_tx*true_tx + true_ty*true_ty );
-        }
-        else if( pdg[i] == 2212 ) {caf.nP++; caf.eP += ke;}
-        else if( pdg[i] == 2112 ) {caf.nN++; caf.eN += ke;}
-        else if( pdg[i] ==  211 ) {caf.nipip++; caf.ePip += ke;}
-        else if( pdg[i] == -211 ) {caf.nipim++; caf.ePim += ke;}
-        else if( pdg[i] ==  111 ) {caf.nipi0++; caf.ePi0 += ke;}
-        else if( pdg[i] ==  321 ) {caf.nikp++; caf.eOther += ke;}
-        else if( pdg[i] == -321 ) {caf.nikm++; caf.eOther += ke;}
-        else if( pdg[i] == 311 || pdg[i] == -311 || pdg[i] == 130 || pdg[i] == 310 ) {caf.nik0++; caf.eOther += ke;}
-        else if( pdg[i] ==   22 ) {caf.niem++; caf.eOther += ke;}
-        else if( pdg[i] > 1000000000 ) caf.nNucleus++;
-        else {caf.niother++; caf.eOther += ke;}
+          if( abs(pdg) >= 11 && abs(pdg) <= 16 ) {
+            caf.LepPDG = pdg;
 
-        // final-state electron
-        if( abs(pdg[i]) == 11 ) {
-          ++electron_candidates;
+            TVector3 perf = mom.Vect();
+            RotateZu( perf, nudir );
 
-          double Ttrue = E[i] - me;
+            caf.LepMomX = perf.x(); // wrt true neutrino
+            caf.LepMomY = perf.y();
+            caf.LepMomZ = perf.z();
+            caf.LepE = mom.E();
+            caf.LepNuAngle = perf.Angle( nudir );
 
-          double thetaX = atan( best_px[i] / best_pz[i] ); // true angle, including beam divergence
-          double thetaY = atan( best_py[i] / best_pz[i] );
+            caf.vtx_x = vtx.X();
+            caf.vtx_y = vtx.Y();
+            caf.vtx_z = vtx.Z();
 
-          double evalEsmear = esmear->Eval(Ttrue);
-          if( evalEsmear < 0. ) evalEsmear = 0.;
+            if( abs(pdg) == 11 || abs(pdg) == 13 ) {
+              caf.isCC = 1;
+              caf.neutrinoPDG = (pdg > 0 ? pdg+1 : pdg-1);
+              caf.neutrinoPDGunosc = caf.neutrinoPDG;
+            } else {
+              caf.isCC = 0;
+              caf.neutrinoPDG = pdg;
+              caf.neutrinoPDGunosc = caf.neutrinoPDG;
+            }
+          } // if lepton
+          else if( pdg == 2212 ) {caf.nP++; caf.eP += ke;}
+          else if( pdg == 2112 ) {caf.nN++; caf.eN += ke;}
+          else if( pdg ==  211 ) {caf.nipip++; caf.ePip += ke;}
+          else if( pdg == -211 ) {caf.nipim++; caf.ePim += ke;}
+          else if( pdg ==  111 ) {caf.nipi0++; caf.ePi0 += ke;}
+          else if( pdg ==  321 ) {caf.nikp++; caf.eOther += ke;}
+          else if( pdg == -321 ) {caf.nikm++; caf.eOther += ke;}
+          else if( pdg == 311 || pdg == -311 || pdg == 130 || pdg == 310 ) {caf.nik0++; caf.eOther += ke;}
+          else if( pdg ==   22 ) {caf.niem++; caf.eOther += ke;}
+          else if( pdg > 1000000000 ) caf.nNucleus++;
+          else {caf.niother++; caf.eOther += ke;}
 
-          double evalTsmear = tsmear->Eval(Ttrue);
-          if( evalTsmear < 0. ) evalTsmear = 0.;
 
-          double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
-          double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-          double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
-          double reco_theta = sqrt( smearx*smearx + smeary*smeary );
+          // background reco stuff now
+          if( abs(pdg) == 11 ) {
+            ++electron_candidates;
 
-          // Lepton truth info
-          caf.LepMomX = perf_px[i]; // wrt true neutrino
-          caf.LepMomY = perf_py[i];
-          caf.LepMomZ = perf_pz[i];
-          caf.LepE = E[i];
-          double true_tx = atan( perf_px[i] / perf_pz[i] );
-          double true_ty = atan( perf_py[i] / perf_pz[i] );
-          caf.LepNuAngle = sqrt( true_tx*true_tx + true_ty*true_ty );
+            TVector3 intpt = vtx.Vect();
+            TVector3 bestnudir = (intpt - origin).Unit();
+            TVector3 best = mom.Vect();
+            RotateZu( best, bestnudir );
 
-          double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
-          double reco_enu = ereco / reco_y;
+            TVector3 perf = mom.Vect();
+            RotateZu( perf, nudir );
 
-          // fill CAF
-          caf.Elep_reco = ereco;
-          caf.theta_reco = reco_theta;
-          caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
-          caf.Ehad_veto = 0.;
+            double thetaX = 1000.*atan( best.x() / best.z() );
+            double thetaY = 1000.*atan( best.y() / best.z() );
+            double Ttrue = mom.E() - me;
 
-        }
-        else if( pdg[i] == 111 ) { // pi0 production
+            double evalEsmear = esmear->Eval(Ttrue);
+            if( evalEsmear < 0. ) evalEsmear = 0.;
 
-          TVector3 gamma1, gamma2;
-          TLorentzVector pi0( best_px[i], best_py[i], best_pz[i], E[i] );
-          decayPi0( pi0, gamma1, gamma2, rando ); // sets photon vectors
+            double evalTsmear = tsmear->Eval(Ttrue);
+            if( evalTsmear < 0. ) evalTsmear = 0.;
 
-          double evalEsmear = esmear->Eval(gamma1.Mag());
-          if( evalEsmear < 0. ) evalEsmear = 0.;
-          double evalTsmear = tsmear->Eval(gamma1.Mag());
-          if( evalTsmear < 0. ) evalTsmear = 0.;
-
-          double reco_e_g1 = gamma1.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
-          double reco_e_g2 = gamma2.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
-
-          double ereco = 0.;
-          double reco_theta = 0.;
-
-          // plausible to reconstruct if a) gamma2 is < 50 MeV, b) angle is < resolution
-          if( reco_e_g2 < 0.05 ) {
-            ++photon_candidates;
-            ereco = reco_e_g1;
-            double thetaX = atan( gamma1.x() / gamma1.z() );
-            double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
+            double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
             double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
             double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
-            reco_theta = sqrt( smearx*smearx + smeary*smeary );
-          } else if( 1000.*gamma1.Angle(gamma2) < evalTsmear ) {
-            ++photon_candidates;
-            ereco = reco_e_g1 + reco_e_g2;
-            double thetaX = atan( gamma1.x() / gamma1.z() );
-            double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
-            double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-            double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
-            reco_theta = sqrt( smearx*smearx + smeary*smeary );
-          } else {
-            extraE += (reco_e_g1 + reco_e_g2);
+            double reco_theta = sqrt( smearx*smearx + smeary*smeary );
+
+            double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
+            double reco_enu = ereco / reco_y;
+
+            // fill CAF
+            caf.Elep_reco = ereco;
+            caf.theta_reco = reco_theta;
+            caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
+            caf.Ehad_veto = 0.;
           }
+          else if( pdg == 111 ) { // pi0 production
 
-          double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
-          double reco_enu = ereco / reco_y;
+            TVector3 gamma1, gamma2;
+            TLorentzVector pi0( mom.X(), mom.Y(), mom.Z(), mom.E() );
+            decayPi0( pi0, gamma1, gamma2, rando ); // sets photon vectors
 
-          // fill CAF
-          caf.Elep_reco = ereco;
-          caf.theta_reco = reco_theta;
-          caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
+            double evalEsmear = esmear->Eval(gamma1.Mag());
+            if( evalEsmear < 0. ) evalEsmear = 0.;
+            double evalTsmear = tsmear->Eval(gamma1.Mag());
+            if( evalTsmear < 0. ) evalTsmear = 0.;
 
-        } else if( abs(pdg[i]) == 12 || abs(pdg[i]) == 14 || pdg[i] == 2112 || pdg[i] > 9999 ) { // neutrinos, neutrons, nuclear fragments
-          continue; // skip these; they contribute nothing to extra energy
-        } else if( abs(pdg[i]) == 211 ) { // charged pion
-          extraE += E[i] - 0.1395;
-        } else if( pdg[i] == 2212 ) { // proton -- should there be a threshold?
-          extraE += E[i] - 0.9382;
-        } else { // anything exotic (kaons?) assume it will cause event to be rejected; it's mass alone will put it over this cut
-          extraE += E[i];
-        }
-      } // fsp loop
+            double reco_e_g1 = gamma1.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
+            double reco_e_g2 = gamma2.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
 
-      caf.Ehad_veto = extraE;
-      caf.pileup_energy = 0.;
+            double ereco = 0.;
+            double reco_theta = 0.;
 
-      if( cat == 1 && electron_candidates == 1 && photon_candidates == 0 ) caf.fill();
-      else if( cat == 2 && electron_candidates == 0 && photon_candidates == 1 ) caf.fill();
-    }
+            // plausible to reconstruct if a) gamma2 is < 50 MeV, b) angle is < resolution
+            if( reco_e_g2 < 0.05 ) {
+              ++photon_candidates;
+              ereco = reco_e_g1;
+              double thetaX = atan( gamma1.x() / gamma1.z() );
+              double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
+              double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
+              double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+              reco_theta = sqrt( smearx*smearx + smeary*smeary );
+            } else if( 1000.*gamma1.Angle(gamma2) < evalTsmear ) {
+              ++photon_candidates;
+              ereco = reco_e_g1 + reco_e_g2;
+              double thetaX = atan( gamma1.x() / gamma1.z() );
+              double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
+              double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
+              double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+              reco_theta = sqrt( smearx*smearx + smeary*smeary );
+            } else {
+              extraE += (reco_e_g1 + reco_e_g2);
+            }
+
+            double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
+            double reco_enu = ereco / reco_y;
+
+            // fill CAF
+            caf.Elep_reco = ereco;
+            caf.theta_reco = reco_theta;
+            caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
+  
+          } else if( abs(pdg) == 12 || abs(pdg) == 14 || pdg == 2112 || pdg > 9999 ) { // neutrinos, neutrons, nuclear fragments
+            continue; // skip these; they contribute nothing to extra energy
+          } else if( abs(pdg) == 211 || pdg == 2212 ) { // charged pion
+            extraE += mom.E() - mom.M();
+          } else {
+            extraE += mom.M();
+          }
+        } // fsp loop
+
+        caf.Ehad_veto = extraE;
+        caf.pileup_energy = 0.;
+
+        if( cat == 1 && electron_candidates == 1 && photon_candidates == 0 ) caf.fill();
+        else if( cat == 2 && electron_candidates == 0 && photon_candidates == 1 ) caf.fill();
+      }
+    } // event loop
   }
 }
 
@@ -424,17 +466,18 @@ int main()
 {
 
   // Signal
-  TChain * tree = new TChain( "tree", "tree" );
-  tree->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
+  //TChain * tree = new TChain( "tree", "tree" );
+  //tree->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
   
-  TChain * meta = new TChain( "meta", "meta" );
-  meta->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
-  double pot = getPOT( meta );
+  //TChain * meta = new TChain( "meta", "meta" );
+  //meta->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
+  //double pot = getPOT( meta );
 
+  TChain * tree = new TChain( "gTree", "gTree" );
+  tree->Add( "/dune/data/users/marshalc/nue.*.root" );
   CAF signal( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_signal.root" );
-  //loop( tree, pot, signal );
-
-  printf( "Got %g POT for %lld events\n", pot, tree->GetEntries() );
+  loop( tree, true, signal );
+  signal.write();
 
 }
 
