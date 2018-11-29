@@ -10,6 +10,7 @@
 
 TRandom3 * rando;
 const double mmu = 0.1056583745;
+TF1 * tsmear; // angular resolution function
 
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
@@ -20,6 +21,7 @@ struct params {
   double em_const, em_sqrtE;
   double michelEff;
   double CC_trk_length;
+  double pileup_frac, pileup_max;
 };
 
 // Fill reco variables for muon reconstructed in magnetized tracker
@@ -29,6 +31,14 @@ void recoMuonTracker( CAF &caf, params &par )
   double p = sqrt(caf.LepE*caf.LepE - mmu*mmu);
   double reco_p = rando->Gaus( p, p*par.trk_muRes );
   caf.Elep_reco = sqrt(reco_p*reco_p + mmu*mmu);
+
+  double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+  double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+  double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+  if( evalTsmear < 0. ) evalTsmear = 0.;
+  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
   // assume perfect charge reconstruction
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
@@ -46,6 +56,15 @@ void recoMuonLAr( CAF &caf, params &par )
   double ke = caf.LepE - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.LAr_muRes );
   caf.Elep_reco = reco_ke + mmu;
+
+  double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+  double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+  double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+  if( evalTsmear < 0. ) evalTsmear = 0.;
+  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+
 
   // assume negative for FHC, require Michel for RHC
   if( par.fhc ) caf.reco_q = -1;
@@ -68,6 +87,14 @@ void recoMuonECAL( CAF &caf, params &par )
   double ke = caf.LepE - mmu;
   double reco_ke = rando->Gaus( ke, ke*par.ECAL_muRes );
   caf.Elep_reco = reco_ke + mmu;
+
+  double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+  double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+  double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+  if( evalTsmear < 0. ) evalTsmear = 0.;
+  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
   // assume perfect charge reconstruction -- these are fairly soft and should curve a lot in short distance
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
@@ -95,6 +122,14 @@ void recoElectron( CAF &caf, params &par )
     caf.reco_nue = 1; caf.reco_nc = 0;
     caf.Ev_reco = caf.Elep_reco;
   }
+
+  double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+  double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+  double evalTsmear = 3. + tsmear->Eval(caf.Elep_reco - mmu);
+  if( evalTsmear < 0. ) evalTsmear = 0.;
+  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
 }
 
@@ -223,11 +258,6 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       current_file = ifileNo;
     }
 
-    // fiducial vertex pre-cut?
-    //if( vtx[0] < -300. || vtx[0] > 300. ) continue;
-    //if( vtx[1] < -100. || vtx[1] > 100. ) continue;
-    //if( vtx[2] <   50. || vtx[2] > 450. ) continue;
-
     caf.vtx_x = vtx[0];
     caf.vtx_y = vtx[1];
     caf.vtx_z = vtx[2]; 
@@ -276,7 +306,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.ePi0 = 0.;
     caf.eOther = 0.;
     for( int i = 0; i < nFS; ++i ) {
-      double ke = 0.01*(fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]));
+      double ke = 0.001*(fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]));
       if( fsPdg[i] == caf.LepPDG ) {
         lepP4.SetPxPyPzE( fsPx[i]*0.001, fsPy[i]*0.001, fsPz[i]*0.001, fsE[i]*0.001 );
         caf.LepE = fsE[i]*0.001;
@@ -299,9 +329,11 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     // Q2, W, x, y frequently do not get filled in GENIE Kinematics object, so calculate manually
     caf.Q2 = -q.Mag2();
-    caf.W = sqrt(0.939*0.939 + 2.*q.E()*0.939 + q.Mag2()); // "GENIE" W, not "Wexp"
+    caf.W = sqrt(0.939*0.939 + 2.*q.E()*0.939 + q.Mag2()); // "Wexp"
     caf.X = -q.Mag2()/(2*0.939*q.E());
     caf.Y = q.E()/caf.Ev;
+
+    caf.theta_reco = -1.; // default value
 
     caf.NuMomX = nuP4.X();
     caf.NuMomY = nuP4.Y();
@@ -375,6 +407,14 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         caf.reco_q = 0;
         caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
         caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 1;
+
+        double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+        double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+        double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+        if( evalTsmear < 0. ) evalTsmear = 0.;
+        double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+        double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+        caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
       }
     } else { // NC -- set PID variables, will get updated later if fake CC
       caf.Elep_reco = 0.;
@@ -460,6 +500,8 @@ int main( int argc, char const *argv[] )
   par.em_sqrtE = 0.1; // EM energy resolution 1/sqrt(E) term: A + B/sqrt(E) (GeV)
   par.michelEff = 0.75; // Michel finder efficiency
   par.CC_trk_length = 100.; // minimum track length for CC in cm
+  par.pileup_frac = 0.1; // fraction of events with non-zero pile-up
+  par.pileup_max = 0.5; // GeV
 
   int i = 0;
   while( i < argc ) {
@@ -509,12 +551,14 @@ int main( int argc, char const *argv[] )
 
   rando = new TRandom3( par.seed );
 
+  tsmear = new TF1( "tsmear", "0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
+
   TFile * tf = new TFile( edepfile.c_str() );
   TTree * tree = (TTree*) tf->Get( "tree" );
 
   loop( caf, par, tree, ghepdir, fhicl_filename );
 
-  caf.version = 1;
+  caf.version = 2;
   printf( "Run %d POT %g\n", caf.meta_run, caf.pot );
   caf.fillPOT();
   caf.write();
