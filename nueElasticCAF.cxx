@@ -18,36 +18,35 @@
 #include "PDG/PDGCodes.h"
 #include "Utils/CmdLnArgParser.h"
 #include "Conventions/Units.h"
+#include "FluxDrivers/GSimpleNtpFlux.h"
 
 using namespace genie;
 
 const double me  = 0.511E-3; // GeV
 const double mmu = 0.10537; // GeV
 
-double getPOT( TTree * meta )
+// initialize variable resolutions
+TF1 * esmear;
+TF1 * tsmear;
+
+TRandom3 * rando;
+
+void init()
 {
+  esmear = new TF1( "esmear", "0.03 + 0.05*pow(x,-0.5)", 0., 999.9 );
+  tsmear = new TF1( "tsmear", "3. + 0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
 
-  double totpot = 0.;
-
-  double pot;
-  meta->SetBranchAddress( "pot", &pot );
-  for( int i = 0; i < meta->GetEntries(); ++i ) {
-    meta->GetEntry(i);
-    totpot += pot;
-  }
-
-  return totpot;
-
+  rando = new TRandom3(12345);
 }
 
-void decayPi0( TLorentzVector pi0, TVector3 &gamma1, TVector3 &gamma2, TRandom3 * rand )
+void decayPi0( TLorentzVector &pi0, TVector3 &gamma1, TVector3 &gamma2 )
 {
   double e = pi0.E();
   double mp = 0.1349766; // pi0 mass
 
   double beta = sqrt( 1. - (mp*mp)/(e*e) ); // velocity of pi0
-  double theta = 3.1416*rand->Rndm(); // theta of gamma1 w.r.t. pi0 direction
-  double phi = 2.*3.1416*rand->Rndm(); // phi of gamma1 w.r.t. pi0 direction
+  double theta = 3.1416*rando->Rndm(); // theta of gamma1 w.r.t. pi0 direction
+  double phi = 2.*3.1416*rando->Rndm(); // phi of gamma1 w.r.t. pi0 direction
 
   double p = mp/2.; // photon momentum in pi0 rest frame
   TLorentzVector g1( 0., 0., p, p ); // pre-rotation photon 1
@@ -121,28 +120,22 @@ void RotateZu( TVector3 &v, TVector3 uu )
 void loop( TTree * tree, int cat, CAF &caf )
 {
 
-  TRandom3 * rando = new TRandom3(12345);
-
   // midpoint of the decay pipe, relative to detector center at (0,0,0)
   TVector3 origin(0., 4823.6, -46048.);
 
-  // initialize variable resolutions
-  TF1 * esmear = new TF1( "esmear", "0.03 + 0.05*pow(x,-0.5)", 0., 999.9 );
-  TF1 * tsmear = new TF1( "tsmear", "3. + 0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
-
   // Signal
-  if( cat == 0 ) {
-  
-    NtpMCEventRecord * mcrec = 0;
-    tree->SetBranchAddress("gmcrec", &mcrec);
+  int N = tree->GetEntries();
 
-    int N = tree->GetEntries();
+  NtpMCEventRecord * mcrec = NULL;
+  tree->SetBranchAddress("gmcrec", &mcrec);
+
+  if( cat == 0 ) {
 
     // loop over events
     for( int ii = 0; ii < N; ++ii ) {
       tree->GetEntry( ii );
 
-      if( ii % 1000000 == 0 ) printf( "Event %d of %d...\n", ii, N );
+      caf.setToBS();
 
       // Set basic CAF variables
       caf.run = 10;
@@ -166,13 +159,19 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.pileup_energy = 0.;
 
       // get the GENIE event
-      EventRecord &  event = *(mcrec->event);
-      Interaction *in = event.Summary();
+      EventRecord *event = mcrec->event;
+      Interaction *in = event->Summary();
 
       TLorentzVector lep = in->Kine().FSLeptonP4();
       TLorentzVector nu = *(in->InitState().GetProbeP4(kRfLab));
       TVector3 nudir = nu.Vect().Unit();
       TLorentzVector q = nu-lep;
+
+      TVector3 vtxO = event->Vertex()->Vect();
+      TVector3 vtx( vtxO.x()*100., vtxO.y()*100. - 305., vtxO.z()*100. - 5. );
+      caf.vtx_x = vtx.x();
+      caf.vtx_y = vtx.y();
+      caf.vtx_z = vtx.z();
 
       caf.NuMomX = nu.X();
       caf.NuMomY = nu.Y();
@@ -188,18 +187,16 @@ void loop( TTree * tree, int cat, CAF &caf )
 
       // Loop over all particles in this event, fill particle variables
       GHepParticle * p = 0;
-      TIter event_iter(&event);
+      TIter event_iter(event);
 
       while((p=dynamic_cast<GHepParticle *>(event_iter.Next()))) {
 
         if( p->Status() == kIStStableFinalState ) {
           if( p->Pdg() == 11 ) {
-            TLorentzVector vtx = *(p->X4());
             TLorentzVector mom = *(p->P4());
             double Ttrue = mom.E() - me;
 
-            TVector3 intpt = vtx.Vect();
-            TVector3 bestnudir = (intpt - origin).Unit();
+            TVector3 bestnudir = (vtx - origin).Unit();
             TVector3 best = mom.Vect();
             RotateZu( best, bestnudir );
 
@@ -232,12 +229,9 @@ void loop( TTree * tree, int cat, CAF &caf )
 
             // fill CAF
             caf.Elep_reco = ereco;
-            caf.theta_reco = reco_theta;
+            caf.theta_reco = 0.001*reco_theta;
             caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
             caf.Ehad_veto = 0.;
-            caf.vtx_x = vtx.X();
-            caf.vtx_y = vtx.Y();
-            caf.vtx_z = vtx.Z();
           } // if electron
           else if( abs(p->Pdg()) == 12 || abs(p->Pdg()) == 14 ) {
             caf.neutrinoPDG = p->Pdg();
@@ -250,24 +244,22 @@ void loop( TTree * tree, int cat, CAF &caf )
 
       // clear current mc event record
       mcrec->Clear();
-    }
-  }
+    } // event loop
+  } // if signal
   else { // bkg
 
-    NtpMCEventRecord * mcrec = 0;
-    tree->SetBranchAddress("gmcrec", &mcrec);
-
-    int N = tree->GetEntries();
-    for( int ii = 0; ii < 10000; ++ii ) {
+    // loop over events
+    for( int ii = 0; ii < N; ++ii ) {
       tree->GetEntry( ii );
 
-      if( ii % 100000 == 0 ) printf( "Event %d of %d...\n", ii, N );
+      caf.setToBS();
 
       // Set basic CAF variables
       caf.run = 10 + cat;
       caf.subrun = 10 + cat;
       caf.event = ii;
-      caf.isCC = 0;
+      caf.isCC = 0; // overwritten in particle loop
+      caf.LepPDG = 0; // overwritten in particle loop
 
       caf.nP = 0; caf.nN = 0; caf.nipip = 0; caf.nipi0 = 0; caf.nikm = 0; caf.nik0 = 0; 
       caf.niem = 0; caf.niother = 0; caf.nNucleus = 0; caf.nUNKNOWN = 0;
@@ -283,8 +275,23 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.pileup_energy = 0.;
 
       // get the GENIE event
-      EventRecord &  event = *(mcrec->event);
-      Interaction *in = event.Summary();
+      EventRecord *event = mcrec->event;
+      Interaction *in = event->Summary();
+
+      systtools::event_unit_response_w_cv_t resp = rh.GetEventVariationAndCVResponse(*event);
+      for( systtools::event_unit_response_w_cv_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
+        caf.nwgt[(*it).pid] = (*it).responses.size();
+        caf.cvwgt[(*it).pid] = (*it).CV_response;
+        for( unsigned int i = 0; i < (*it).responses.size(); ++i ) {
+          caf.wgt[(*it).pid][i] = (*it).responses[i];
+        }
+      }
+
+      TVector3 vtxO = event->Vertex()->Vect();
+      TVector3 vtx( vtxO.x()*100., vtxO.y()*100. - 305., vtxO.z()*100. - 5. );
+      caf.vtx_x = vtx.x();
+      caf.vtx_y = vtx.y();
+      caf.vtx_z = vtx.z();
 
       TLorentzVector lep = in->Kine().FSLeptonP4();
       TLorentzVector nu = *(in->InitState().GetProbeP4(kRfLab));
@@ -303,11 +310,14 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.mode = in->ProcInfo().ScatteringTypeId();
       caf.Ev = in->InitState().ProbeE(kRfLab);
 
-      if( caf.mode == 7 ) continue; // nu+e in background file
+      if( caf.mode == 7 ) {
+        mcrec->Clear();
+        continue; // nu+e in background file
+      }
 
       // Loop over all particles in this event, fill particle variables
       GHepParticle * p = 0;
-      TIter event_iter(&event);
+      TIter event_iter(event);
 
       double extraE = 0.;
       int electron_candidates = 0;
@@ -317,7 +327,6 @@ void loop( TTree * tree, int cat, CAF &caf )
 
         if( p->Status() == kIStStableFinalState ) {
 
-          TLorentzVector vtx = *(p->X4());
           TLorentzVector mom = *(p->P4());
           double ke = mom.E() - mom.M();
           int pdg = p->Pdg();
@@ -333,10 +342,6 @@ void loop( TTree * tree, int cat, CAF &caf )
             caf.LepMomZ = perf.z();
             caf.LepE = mom.E();
             caf.LepNuAngle = perf.Angle( nudir );
-
-            caf.vtx_x = vtx.X();
-            caf.vtx_y = vtx.Y();
-            caf.vtx_z = vtx.Z();
 
             if( abs(pdg) == 11 || abs(pdg) == 13 ) {
               caf.isCC = 1;
@@ -365,8 +370,7 @@ void loop( TTree * tree, int cat, CAF &caf )
           if( abs(pdg) == 11 ) {
             ++electron_candidates;
 
-            TVector3 intpt = vtx.Vect();
-            TVector3 bestnudir = (intpt - origin).Unit();
+            TVector3 bestnudir = (vtx - origin).Unit();
             TVector3 best = mom.Vect();
             RotateZu( best, bestnudir );
 
@@ -384,8 +388,8 @@ void loop( TTree * tree, int cat, CAF &caf )
             if( evalTsmear < 0. ) evalTsmear = 0.;
 
             double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
-            double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-            double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double smearx = thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double smeary = thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
             double reco_theta = sqrt( smearx*smearx + smeary*smeary );
 
             double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
@@ -393,15 +397,14 @@ void loop( TTree * tree, int cat, CAF &caf )
 
             // fill CAF
             caf.Elep_reco = ereco;
-            caf.theta_reco = reco_theta;
+            caf.theta_reco = 0.001*reco_theta;
             caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
-            caf.Ehad_veto = 0.;
           }
           else if( pdg == 111 ) { // pi0 production
 
             TVector3 gamma1, gamma2;
             TLorentzVector pi0( mom.X(), mom.Y(), mom.Z(), mom.E() );
-            decayPi0( pi0, gamma1, gamma2, rando ); // sets photon vectors
+            decayPi0( pi0, gamma1, gamma2 ); // sets photon vectors
 
             double evalEsmear = esmear->Eval(gamma1.Mag());
             if( evalEsmear < 0. ) evalEsmear = 0.;
@@ -435,14 +438,15 @@ void loop( TTree * tree, int cat, CAF &caf )
               extraE += (reco_e_g1 + reco_e_g2);
             }
 
-            double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
-            double reco_enu = ereco / reco_y;
+            if( cat == 2 ) {
+              double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
+              double reco_enu = ereco / reco_y;
 
-            // fill CAF
-            caf.Elep_reco = ereco;
-            caf.theta_reco = reco_theta;
-            caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
-  
+              caf.Elep_reco = ereco;
+              caf.theta_reco = 0.001*reco_theta;
+              caf.Ev_reco = reco_enu; // 2D neutrino energy reco, can sometimes be negative
+            }  
+
           } else if( abs(pdg) == 12 || abs(pdg) == 14 || pdg == 2112 || pdg > 9999 ) { // neutrinos, neutrons, nuclear fragments
             continue; // skip these; they contribute nothing to extra energy
           } else if( abs(pdg) == 211 || pdg == 2212 ) { // charged pion
@@ -450,34 +454,118 @@ void loop( TTree * tree, int cat, CAF &caf )
           } else {
             extraE += mom.M();
           }
-        } // fsp loop
+        } // fsp if stable fs
+      } // fsp loop
 
-        caf.Ehad_veto = extraE;
+      if( electron_candidates + photon_candidates == 1 ) {
+
+        caf.Ehad_veto = extraE*1000.; // MeV
         caf.pileup_energy = 0.;
 
         if( cat == 1 && electron_candidates == 1 && photon_candidates == 0 ) caf.fill();
         else if( cat == 2 && electron_candidates == 0 && photon_candidates == 1 ) caf.fill();
       }
+
+      // clear current mc event record
+      mcrec->Clear();
+
     } // event loop
-  }
+
+  } // if bkg
 }
 
 int main()
 {
 
-  // Signal
-  //TChain * tree = new TChain( "tree", "tree" );
-  //tree->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
-  
-  //TChain * meta = new TChain( "meta", "meta" );
-  //meta->Add( "/dune/data/users/marshalc/nue/FHC/*.root" );
-  //double pot = getPOT( meta );
-
-  TChain * tree = new TChain( "gTree", "gTree" );
-  tree->Add( "/dune/data/users/marshalc/nue.*.root" );
+  init();
+/*
+  // nu+e signal
   CAF signal( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_signal.root" );
-  loop( tree, true, signal );
+  signal.pot = 0.;
+  signal.meta_run = 0;
+  signal.meta_subrun = 0;
+  signal.version = 2;
+  for( int i = 0; i <= 999; ++i ) {
+    if( i % 10 == 0 ) printf( "nu+e signal file %d, so far %4.4g POT\n", i, signal.pot );
+    TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuESignal/FHC/LAr.neutrino.%d.ghep.root",i) );
+    if( tf == NULL ) delete tf;
+    else {
+      TTree * tree = (TTree*) tf->Get("gtree");
+      if( tree && !tf->TestBit(TFile::kRecovered) ) {
+        signal.pot += 1.0E21;
+        loop( tree, 0, signal );
+      }
+      delete tree;
+      tf->Close();
+      delete tf;
+    }
+  }
+  signal.fillPOT();
   signal.write();
+*/
 
+  // nu_e CC background
+  CAF bkg1( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_CCbkg.root" );
+  nusyst::response_helper rh( "fhicl.fcl" );
+  std::vector<unsigned int> parIds = rh.GetParameters();
+  for( unsigned int i = 0; i < parIds.size(); ++i ) {
+    systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
+    printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
+    bool is_wgt = head.isWeightSystematicVariation;
+    std::string wgt_var = ( is_wgt ? "wgt" : "var" );
+    bkg1.addRWbranch( parIds[i], head.prettyName, wgt_var, head.paramVariations );
+    bkg1.iswgt[parIds[i]] = is_wgt;
+  }
+  bkg1.pot = 0.;
+  bkg1.meta_run = 0;
+  bkg1.meta_subrun = 0;
+  bkg1.version = 2;
+  for( int i = 0; i <= 999; ++i ) {
+    if( i % 10 == 0 ) printf( "nue CC background file %d, so far %4.4g POT\n", i, bkg1.pot );
+    TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuEBkg/FHC/LAr.neutrino.%d.ghep.root",i) );
+    if( tf != NULL ) {
+      TTree * tree = (TTree*) tf->Get("gtree");
+      if( tree && !tf->TestBit(TFile::kRecovered) ) {
+        bkg1.pot += 1.0E18;
+        loop( tree, 1, bkg1 );
+      }
+      tf->Close();
+    }
+    delete tf;
+  }
+  bkg1.fillPOT();
+  bkg1.write();
+
+/*
+  // NC background
+  CAF bkg2( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_NCbkg.root" );
+  for( unsigned int i = 0; i < parIds.size(); ++i ) {
+    systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
+    printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
+    bool is_wgt = head.isWeightSystematicVariation;
+    std::string wgt_var = ( is_wgt ? "wgt" : "var" );
+    bkg2.addRWbranch( parIds[i], head.prettyName, wgt_var, head.paramVariations );
+    bkg2.iswgt[parIds[i]] = is_wgt;
+  }
+  bkg2.pot = 0.;
+  bkg2.meta_run = 0;
+  bkg2.meta_subrun = 0;
+  bkg2.version = 2;
+  for( int i = 0; i <= 999; ++i ) {
+    if( i % 10 == 0 ) printf( "NC background file %d, so far %4.4g POT\n", i, bkg2.pot );
+    TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuEBkg/FHC/LAr.neutrino.%d.ghep.root",i) );
+    if( tf != NULL ) {
+      TTree * tree = (TTree*) tf->Get("gtree");
+      if( tree && !tf->TestBit(TFile::kRecovered) ) {
+        bkg2.pot += 1.0E18;
+        loop( tree, 2, bkg2 );
+      }
+      tf->Close();
+    }
+    delete tf;
+  }
+  bkg2.fillPOT();
+  bkg2.write();
+*/
 }
 

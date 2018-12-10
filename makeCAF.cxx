@@ -38,7 +38,7 @@ void recoMuonTracker( CAF &caf, params &par )
   if( evalTsmear < 0. ) evalTsmear = 0.;
   double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
   double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+  caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
   // assume perfect charge reconstruction
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
@@ -63,7 +63,7 @@ void recoMuonLAr( CAF &caf, params &par )
   if( evalTsmear < 0. ) evalTsmear = 0.;
   double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
   double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+  caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
 
   // assume negative for FHC, require Michel for RHC
@@ -94,7 +94,7 @@ void recoMuonECAL( CAF &caf, params &par )
   if( evalTsmear < 0. ) evalTsmear = 0.;
   double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
   double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+  caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
   // assume perfect charge reconstruction -- these are fairly soft and should curve a lot in short distance
   caf.reco_q = (caf.LepPDG > 0 ? -1 : 1);
@@ -129,7 +129,7 @@ void recoElectron( CAF &caf, params &par )
   if( evalTsmear < 0. ) evalTsmear = 0.;
   double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
   double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-  caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+  caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
 
 }
 
@@ -414,7 +414,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         if( evalTsmear < 0. ) evalTsmear = 0.;
         double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
         double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-        caf.theta_reco = sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+        caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
       }
     } else { // NC -- set PID variables, will get updated later if fake CC
       caf.Elep_reco = 0.;
@@ -453,6 +453,10 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     // Hadronic energy calorimetrically
     caf.Ev_reco = caf.Elep_reco + hadTot*0.0011;
     caf.Ehad_veto = hadCollar;
+
+    caf.pileup_energy = 0.;
+    if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
+    caf.Ev_reco += caf.pileup_energy;
 
     //caf.Print();
 

@@ -61,6 +61,7 @@ CAF::CAF( std::string filename )
 
   cafMVA->Branch( "Ev_reco", &Ev_reco, "Ev_reco/D" );
   cafMVA->Branch( "Elep_reco", &Elep_reco, "Elep_reco/D" );
+  cafMVA->Branch( "theta_reco", &theta_reco, "theta_reco/D" );
   cafMVA->Branch( "reco_numu", &reco_numu, "reco_numu/I" );
   cafMVA->Branch( "reco_nue", &reco_nue, "reco_nue/I" );
   cafMVA->Branch( "reco_nc", &reco_nc, "reco_nc/I" );
@@ -71,6 +72,7 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "muon_exit", &muon_exit, "muon_exit/I" );
   cafMVA->Branch( "reco_lepton_pdg", &reco_lepton_pdg, "reco_lepton_pdg/I" );
   cafMVA->Branch( "Ehad_veto", &Ehad_veto, "Ehad_veto/D" );
+  cafMVA->Branch( "pileup_energy", &pileup_energy, "pileup_energy/D" );
 
   cafPOT->Branch( "pot", &pot, "pot/D" );
   cafPOT->Branch( "run", &meta_run, "run/I" );
@@ -103,6 +105,7 @@ void CAF::write()
   cafFile->cd();
   cafMVA->Write();
   cafPOT->Write();
+  cafFile->Close();
 }
 
 void CAF::addRWbranch( int parId, std::string name, std::string wgt_var, std::vector<double> &vars )
@@ -110,6 +113,37 @@ void CAF::addRWbranch( int parId, std::string name, std::string wgt_var, std::ve
   cafMVA->Branch( Form("%s_nshifts", name.c_str()), &nwgt[parId], Form("%s_nshifts/I", name.c_str()) );
   cafMVA->Branch( Form("%s_cv%s", name.c_str(), wgt_var.c_str()), &cvwgt[parId], Form("%s_cv%s/D", name.c_str(), wgt_var.c_str()) );
   cafMVA->Branch( Form("%s_%s", wgt_var.c_str(), name.c_str()), wgt[parId], Form("%s_%s[%s_nshifts]/D", wgt_var.c_str(), name.c_str(), name.c_str()) );
+}
+
+void CAF::setToBS()
+{
+  isFD = -1;
+  isFHC = -1;
+  run = -1; subrun = -1; event = -1;
+  isCC = -1; neutrinoPDG = 0; neutrinoPDGunosc = 0;
+  mode = 0; LepPDG = 0;
+  Ev = -1.; Q2 = -1.; W = -1.; X = -1.; Y = -1.;
+  NuMomX = -999.; NuMomY = -999.; NuMomZ = -999.;
+  LepMomX = -999.; LepMomY = -999.; LepMomZ = -999.; 
+  LepE = -999.; LepNuAngle = -999.;
+  nP = 0; nN = 0; nipip = 0; nipim = 0; nipi0 = 0; nikp = 0; nikm = 0; nik0 = 0; niem = 0; niother = 0; nNucleus = 0; nUNKNOWN = 0;
+  eP = 0.; eN = 0.; ePip = 0.; ePim = 0.; ePi0 = 0.; eOther = 0.;
+  vtx_x = -9999.; vtx_y = -9999.; vtx_z = -9999.;
+  det_x = -9999.;
+  Ev_reco = 0.; Elep_reco = 0.; theta_reco = 0.;
+  reco_numu = 0; reco_nue = 0; reco_nc = 0; reco_q = 0;
+  muon_contained = 0; muon_tracker = 0; muon_ecal = 0; muon_exit = 0; reco_lepton_pdg = 0;
+  Ehad_veto = 0.;
+  pileup_energy = 0.;
+
+  for( int i = 0; i < 100; ++i ) {
+    nwgt[i] = 0;
+    cvwgt[i] = 1.;
+    iswgt[i] = 0;
+    for( int j = 0; j < 100; ++j ) {
+      wgt[i][j] = 1.;
+    }
+  }
 }
 
 #endif

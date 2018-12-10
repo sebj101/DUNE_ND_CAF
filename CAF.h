@@ -14,6 +14,7 @@ public:
   void write();
   void addRWbranch( int parId, std::string name, std::string wgt_var, std::vector<double> &vars );
   void Print();
+  void setToBS();
 
   // Make ntuple variables public so they can be set from other file
 
@@ -33,10 +34,11 @@ public:
   double det_x;
 
   // Reco information CV
-  double Ev_reco, Elep_reco;
+  double Ev_reco, Elep_reco, theta_reco;
   int reco_numu, reco_nue, reco_nc, reco_q;
   int muon_contained, muon_tracker, muon_ecal, muon_exit, reco_lepton_pdg;
   double Ehad_veto;
+  double pileup_energy;
 
   // reweights -- make sure big enough to hold all the variations for each knob, and all the knobs
   // the names, and what they actually mean, are determined automatically from the fhicl input file
