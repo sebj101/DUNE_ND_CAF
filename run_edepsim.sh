@@ -18,8 +18,8 @@ MODE="antineutrino"
 fi
 
 if [ "${NPER}" = "" ]; then
-echo "Number of events per job not specified, using 1000"
-NPER=1000
+echo "Number of events per job not specified, will run entire input file"
+NPER=-1
 fi
 
 if [ "${FIRST}" = "" ]; then
@@ -45,8 +45,8 @@ OUTFLAG="LAr"
 RDIR=0$((${RNDSEED} / 1000))
 
 USERDIR="/pnfs/dune/persistent/users/marshalc/CAF"
-INDIR="/pnfs/dune/persistent/users/marshalc/CAF/genie/${OUTFLAG}/${HORN}/${RDIR}"
-OUTDIR="/pnfs/dune/persistent/users/marshalc/CAF/edep"
+INDIR="/pnfs/dune/persistent/users/marshalc/CAF/genieNewFluxv2/${OUTFLAG}/${HORN}/${RDIR}"
+OUTDIR="/pnfs/dune/persistent/users/marshalc/CAF/edepNewFlux"
 
 ##################################################
 
@@ -86,6 +86,13 @@ echo ${LD_LIBRARY_PATH}
 gntpc -i input_file.ghep.root -f rootracker \
       --event-record-print-level 0 \
       --message-thresholds Messenger_production.xml
+
+# run all the events in a file
+if [ "${NPER}" = -1 ]; then
+echo "Specified all events, determining how many events there are"
+NPER=$(echo "std::cout << gtree->GetEntries() << std::endl;" | genie -l -b input_file.ghep.root 2>/dev/null  | tail -1)
+echo "There are ${NPER} events"
+fi
 
 ##################################################
 
