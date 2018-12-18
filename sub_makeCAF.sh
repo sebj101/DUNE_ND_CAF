@@ -5,7 +5,7 @@
 # Then runs makeCAF (create CAF file from extracted output)
 # The intermediate flat tree is also saved
 # Syntax for the jobsub_submit command is:
-# jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=4000MB --group=dune file://`pwd`/sub_makeCAF.sh FHC 50
+# jobsub_submit --group dune --role=Analysis -N 100 --OS=SL6 --expected-lifetime=12h --memory=2000MB --group=dune file://`pwd`/sub_makeCAF.sh FHC 50
 ##################################################
 
 HORN=$1
@@ -41,8 +41,8 @@ RHC=" --rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/marshalc/CAF"
-DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpNewFlux"
-CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFNewFlux"
+DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv3"
+CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv3"
 STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
@@ -99,9 +99,6 @@ tar xzf DUNE_ND_CAF.tar.gz
 mv DUNE_ND_CAF/* .
 #export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/edep-sim/lib
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:${PWD}/nusyst/artless
-
-${CP} ${INPUTTOP}/nusyst_inputs.V00_02.tar.gz nusyst_inputs.tar.gz
-tar xzf nusyst_inputs.tar.gz
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
