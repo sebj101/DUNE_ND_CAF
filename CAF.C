@@ -53,6 +53,12 @@ CAF::CAF( std::string filename )
   cafMVA->Branch("ePim",      &ePim,       "ePim/D");
   cafMVA->Branch("ePi0",      &ePi0,       "ePi0/D");
   cafMVA->Branch("eOther",    &eOther,     "eOther/D");
+  cafMVA->Branch("eRecoP",        &eRecoP,         "eRecoP/D");
+  cafMVA->Branch("eRecoN",        &eRecoN,         "eRecoN/D");
+  cafMVA->Branch("eRecoPip",      &eRecoPip,       "eRecoPip/D");
+  cafMVA->Branch("eRecoPim",      &eRecoPim,       "eRecoPim/D");
+  cafMVA->Branch("eRecoPi0",      &eRecoPi0,       "eRecoPi0/D");
+  cafMVA->Branch("eRecoOther",    &eRecoOther,     "eRecoOther/D");
 
   cafMVA->Branch( "det_x", &det_x, "det_x/D" );
   cafMVA->Branch( "vtx_x", &vtx_x, "vtx_x/D" );

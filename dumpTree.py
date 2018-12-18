@@ -57,6 +57,12 @@ def loop( events, tgeo, tout, nfiles, okruns ):
             t_muonReco[0] = -1;
             t_muGArLen[0]=0.0;
             t_hadTot[0] = 0.
+            t_hadP[0] = 0.
+            t_hadN[0] = 0.
+            t_hadPip[0] = 0.
+            t_hadPim[0] = 0.
+            t_hadPi0[0] = 0.
+            t_hadOther[0] = 0.
             t_hadCollar[0] = 0.
             t_nFS[0] = 0
             ## done
@@ -215,13 +221,24 @@ def loop( events, tgeo, tout, nfiles, okruns ):
                 if key.first == "ArgonCube":
                     hits += key.second
 
+            # Truth-matching energy -- make dictionary of trajectory --> primary pdg
+            traj_to_pdg = {}
+            for traj in event.Trajectories:
+                mom = traj.ParentId
+                tid = traj.TrackId
+                while mom != -1:
+                    tid = mom
+                    mom = event.Trajectories[mom].ParentId
+                traj_to_pdg[traj] = event.Trajectories[tid].PDGCode
+
             collar_energy = 0.
             total_energy = 0.
             track_length = [0. for i in range(nfsp)]
             for hit in hits:
                 hStart = ROOT.TVector3( hit.Start[0]/10.-offset[0], hit.Start[1]/10.-offset[1], hit.Start[2]/10.-offset[2] )
                 hStop = ROOT.TVector3( hit.Stop[0]/10.-offset[0], hit.Stop[1]/10.-offset[1], hit.Stop[2]/10.-offset[2] )
-                if event.Trajectories[hit.PrimaryId].ParentId == -1:
+                traj = event.Trajectories[hit.PrimaryId]
+                if traj.ParentId == -1: # primary particle
                     track_length[fsParticleIdx[hit.PrimaryId]] += (hStop-hStart).Mag()
 
                 if hit.PrimaryId != ileptraj:
@@ -230,6 +247,16 @@ def loop( events, tgeo, tout, nfiles, okruns ):
                     # check if hit is in collar region
                     if hStart.x() < collarLo[0] or hStart.x() > collarHi[0] or hStart.y() < collarLo[1] or hStart.y() > collarHi[1] or hStart.z() < collarLo[2] or hStart.z() > collarHi[2]:
                         collar_energy += hit.EnergyDeposit
+
+                    # Determine primary particle
+                    pdg = traj_to_pdg[traj]
+                    if pdg in [11, -11, 13, -13]: continue # lepton
+                    elif pdg == 2212: t_hadP[0] += hit.EnergyDeposit
+                    elif pdg == 2112: t_hadN[0] += hit.EnergyDeposit
+                    elif pdg == 211: t_hadPip[0] += hit.EnergyDeposit
+                    elif pdg == -211: t_hadPim[0] += hit.EnergyDeposit
+                    elif pdg == 111: t_hadPi0[0] += hit.EnergyDeposit
+                    else: t_hadOther[0] += hit.EnergyDeposit
 
             t_hadTot[0] = total_energy
             t_hadCollar[0] = collar_energy
@@ -279,6 +306,18 @@ if __name__ == "__main__":
     tout.Branch('muGArLen',t_muGArLen,'muGArLen/F')
     t_hadTot = array('f', [0.] )
     tout.Branch('hadTot', t_hadTot, 'hadTot/F' )
+    t_hadP = array('f', [0.] )
+    tout.Branch('hadP', t_hadP, 'hadP/F' )
+    t_hadN = array('f', [0.] )
+    tout.Branch('hadN', t_hadN, 'hadN/F' )
+    t_hadPip = array('f', [0.] )
+    tout.Branch('hadPip', t_hadPip, 'hadPip/F' )
+    t_hadPim = array('f', [0.] )
+    tout.Branch('hadPim', t_hadPim, 'hadPim/F' )
+    t_hadPi0 = array('f', [0.] )
+    tout.Branch('hadPi0', t_hadPi0, 'hadPi0/F' )
+    t_hadOther = array('f', [0.] )
+    tout.Branch('hadOther', t_hadOther, 'hadOther/F' )
     t_hadCollar = array('f', [0.] )
     tout.Branch('hadCollar', t_hadCollar, 'hadCollar/F' )
     t_nFS = array('i',[0])
