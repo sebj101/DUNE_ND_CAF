@@ -74,15 +74,6 @@ def loop( events, tgeo, tout, nfiles, okruns ):
             for i in range(3): 
                 t_vtx[i] = vertex.Position[i] / 10. - offset[i] # cm
 
-            # fiducial vertex cut -- don't do it
-            #fvCut = False
-            #for i in range(3):
-            #    if t_vtx[i] < fvLo[i] or t_vtx[i] > fvHi[i]:
-            #        fvCut = True
-            #vtxv = ROOT.TVector3( t_vtx[0], t_vtx[1], t_vtx[2] )
-            #if fvCut:
-            #    continue
-
             ileptraj = -1
             nfsp = 0
             # get the lepton kinematics from the edepsim file

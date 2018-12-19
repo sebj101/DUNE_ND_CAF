@@ -7,6 +7,7 @@
 #include <TF1.h>
 #include <stdio.h>
 #include <math.h>
+#include "nusystematics/artless/response_helper.hh"
 #include "CAF.C"
 
 // genie includes
@@ -30,6 +31,8 @@ TF1 * esmear;
 TF1 * tsmear;
 
 TRandom3 * rando;
+
+nusyst::response_helper rh( "./fhicl.fcl" );
 
 void init()
 {
@@ -119,6 +122,8 @@ void RotateZu( TVector3 &v, TVector3 uu )
 
 void loop( TTree * tree, int cat, CAF &caf )
 {
+
+  //nusyst::response_helper rh( "./fhicl.fcl" );
 
   // midpoint of the decay pipe, relative to detector center at (0,0,0)
   TVector3 origin(0., 4823.6, -46048.);
@@ -278,6 +283,7 @@ void loop( TTree * tree, int cat, CAF &caf )
       EventRecord *event = mcrec->event;
       Interaction *in = event->Summary();
 
+/*
       systtools::event_unit_response_w_cv_t resp = rh.GetEventVariationAndCVResponse(*event);
       for( systtools::event_unit_response_w_cv_t::iterator it = resp.begin(); it != resp.end(); ++it ) {
         caf.nwgt[(*it).pid] = (*it).responses.size();
@@ -286,7 +292,7 @@ void loop( TTree * tree, int cat, CAF &caf )
           caf.wgt[(*it).pid][i] = (*it).responses[i];
         }
       }
-
+*/
       TVector3 vtxO = event->Vertex()->Vect();
       TVector3 vtx( vtxO.x()*100., vtxO.y()*100. - 305., vtxO.z()*100. - 5. );
       caf.vtx_x = vtx.x();
@@ -451,8 +457,9 @@ void loop( TTree * tree, int cat, CAF &caf )
             continue; // skip these; they contribute nothing to extra energy
           } else if( abs(pdg) == 211 || pdg == 2212 ) { // charged pion
             extraE += mom.E() - mom.M();
+            if( pdg == 211 ) caf.pileup_energy = 1.; // Michel veto?
           } else {
-            extraE += mom.M();
+            extraE += mom.E();
           }
         } // fsp if stable fs
       } // fsp loop
@@ -460,7 +467,6 @@ void loop( TTree * tree, int cat, CAF &caf )
       if( electron_candidates + photon_candidates == 1 ) {
 
         caf.Ehad_veto = extraE*1000.; // MeV
-        caf.pileup_energy = 0.;
 
         if( cat == 1 && electron_candidates == 1 && photon_candidates == 0 ) caf.fill();
         else if( cat == 2 && electron_candidates == 0 && photon_candidates == 1 ) caf.fill();
@@ -478,15 +484,24 @@ int main()
 {
 
   init();
+  std::vector<unsigned int> parIds = rh.GetParameters();
 /*
   // nu+e signal
   CAF signal( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_signal.root" );
+  for( unsigned int i = 0; i < parIds.size(); ++i ) {
+    systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
+    printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
+    bool is_wgt = head.isWeightSystematicVariation;
+    std::string wgt_var = ( is_wgt ? "wgt" : "var" );
+    signal.addRWbranch( parIds[i], head.prettyName, wgt_var, head.paramVariations );
+    signal.iswgt[parIds[i]] = is_wgt;
+  }
   signal.pot = 0.;
   signal.meta_run = 0;
   signal.meta_subrun = 0;
   signal.version = 2;
   for( int i = 0; i <= 999; ++i ) {
-    if( i % 10 == 0 ) printf( "nu+e signal file %d, so far %4.4g POT\n", i, signal.pot );
+    printf( "nu+e signal file %d, so far %4.4g POT\n", i, signal.pot );
     TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuESignal/FHC/LAr.neutrino.%d.ghep.root",i) );
     if( tf == NULL ) delete tf;
     else {
@@ -502,12 +517,9 @@ int main()
   }
   signal.fillPOT();
   signal.write();
-*/
 
   // nu_e CC background
   CAF bkg1( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_CCbkg.root" );
-  nusyst::response_helper rh( "fhicl.fcl" );
-  std::vector<unsigned int> parIds = rh.GetParameters();
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
@@ -521,7 +533,7 @@ int main()
   bkg1.meta_subrun = 0;
   bkg1.version = 2;
   for( int i = 0; i <= 999; ++i ) {
-    if( i % 10 == 0 ) printf( "nue CC background file %d, so far %4.4g POT\n", i, bkg1.pot );
+    printf( "nue CC background file %d, so far %4.4g POT\n", i, bkg1.pot );
     TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuEBkg/FHC/LAr.neutrino.%d.ghep.root",i) );
     if( tf != NULL ) {
       TTree * tree = (TTree*) tf->Get("gtree");
@@ -535,8 +547,8 @@ int main()
   }
   bkg1.fillPOT();
   bkg1.write();
+*/
 
-/*
   // NC background
   CAF bkg2( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_NCbkg.root" );
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
@@ -551,14 +563,16 @@ int main()
   bkg2.meta_run = 0;
   bkg2.meta_subrun = 0;
   bkg2.version = 2;
+  int nevt = 0;
   for( int i = 0; i <= 999; ++i ) {
-    if( i % 10 == 0 ) printf( "NC background file %d, so far %4.4g POT\n", i, bkg2.pot );
-    TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuEBkg/FHC/LAr.neutrino.%d.ghep.root",i) );
+    printf( "NC background file %d, so far %4.4g POT for %d events\n", i, bkg2.pot, nevt );
+    TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNewFluxv2/LAr/FHC/00/LAr.neutrino.%d.ghep.root",i) );
     if( tf != NULL ) {
       TTree * tree = (TTree*) tf->Get("gtree");
       if( tree && !tf->TestBit(TFile::kRecovered) ) {
-        bkg2.pot += 1.0E18;
+        bkg2.pot += 5.0E16;
         loop( tree, 2, bkg2 );
+        nevt += tree->GetEntries();
       }
       tf->Close();
     }
@@ -566,6 +580,7 @@ int main()
   }
   bkg2.fillPOT();
   bkg2.write();
-*/
+  printf( "Got %g POT for %d events\n", bkg2.pot, nevt );
+
 }
 

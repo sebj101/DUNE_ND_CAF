@@ -16,7 +16,7 @@ TF1 * tsmear; // angular resolution function
 struct params {
   double OA_xcoord;
   bool fhc, grid;
-  int seed, run, subrun, first, n;
+  int seed, run, subrun, first, n, nfiles;
   double trk_muRes, LAr_muRes, ECAL_muRes;
   double em_const, em_sqrtE;
   double michelEff;
@@ -177,6 +177,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   // read in edep-sim output file
   int ifileNo, ievt, lepPdg, muonReco, nFS;
   float lepKE, muGArLen, hadTot, hadCollar;
+  float hadP, hadN, hadPip, hadPim, hadPi0, hadOther;
   float p3lep[3], vtx[3], muonExitPt[3], muonExitMom[3];
   int fsPdg[100];
   float fsPx[100], fsPy[100], fsPz[100], fsE[100], fsTrkLen[100];
@@ -188,6 +189,12 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   tree->SetBranchAddress( "muGArLen", &muGArLen );
   tree->SetBranchAddress( "hadTot", &hadTot );
   tree->SetBranchAddress( "hadCollar", &hadCollar );
+  tree->SetBranchAddress( "hadP", &hadP );
+  tree->SetBranchAddress( "hadN", &hadN );
+  tree->SetBranchAddress( "hadPip", &hadPip );
+  tree->SetBranchAddress( "hadPim", &hadPim );
+  tree->SetBranchAddress( "hadPi0", &hadPi0 );
+  tree->SetBranchAddress( "hadOther", &hadOther );
   tree->SetBranchAddress( "p3lep", p3lep );
   tree->SetBranchAddress( "vtx", vtx );
   tree->SetBranchAddress( "muonExitPt", muonExitPt );
@@ -304,6 +311,12 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.ePip = 0.;
     caf.ePim = 0.;
     caf.ePi0 = 0.;
+    caf.eOther = 0.;
+    caf.eRecoP = 0.;
+    caf.eRecoN = 0.;
+    caf.eRecoPip = 0.;
+    caf.eRecoPim = 0.;
+    caf.eRecoPi0 = 0.;
     caf.eOther = 0.;
     for( int i = 0; i < nFS; ++i ) {
       double ke = 0.001*(fsE[i] - sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]));
@@ -451,14 +464,18 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     }
 
     // Hadronic energy calorimetrically
-    caf.Ev_reco = caf.Elep_reco + hadTot*0.0011;
+    caf.Ev_reco = caf.Elep_reco + hadTot*0.001;
     caf.Ehad_veto = hadCollar;
+    caf.eRecoP = hadP*0.001;
+    caf.eRecoN = hadN*0.001;
+    caf.eRecoPip = hadPip*0.001;
+    caf.eRecoPim = hadPim*0.001;
+    caf.eRecoPi0 = hadPi0*0.001;
+    caf.eRecoOther = hadOther*0.001;
 
     caf.pileup_energy = 0.;
     if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
     caf.Ev_reco += caf.pileup_energy;
-
-    //caf.Print();
 
     caf.fill();
   }
@@ -466,10 +483,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   // set POT
   caf.meta_run = par.run;
   caf.meta_subrun = par.subrun;
-  // FHC events per ton per POT 1.41213e-15
-  // RHC events per ton per POT 5.60088e-16
-  // 147 tons is 7 x 3 x 5 detector
-  caf.pot = ( par.fhc ? N/(147*1.41213e-15) : N/(147*5.60088e-16) );
+
+  // 5E16 POT per file
+  caf.pot = par.nfiles * 5.0E16
 
 }
 
@@ -496,6 +512,7 @@ int main( int argc, char const *argv[] )
   par.run = 1; // CAFAna doesn't like run number 0
   par.subrun = 0;
   par.n = -1;
+  par.nfiles = 1;
   par.first = 0;
   par.trk_muRes = 0.02; // fractional muon energy resolution of HP GAr TPC
   par.LAr_muRes = 0.05; // fractional muon energy resolution of muons contained in LAr
@@ -525,8 +542,11 @@ int main( int argc, char const *argv[] )
       par.seed = atoi(argv[i+1]);
       par.run = par.seed;
       i += 2;
-    } else if( argv[i] == std::string("--nevents") || argv[i] == std::string("-n") ) {
+    } else if( argv[i] == std::string("--nevents") ) {
       par.n = atoi(argv[i+1]);
+      i += 2;
+    } else if( argv[i] == std::string("--nfiles") ) {
+      par.nfiles = atoi(argv[i+1]);
       i += 2;
     } else if( argv[i] == std::string("--first") ) {
       par.first = atoi(argv[i+1]);
