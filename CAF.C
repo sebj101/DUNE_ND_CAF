@@ -134,6 +134,7 @@ void CAF::setToBS()
   LepE = -999.; LepNuAngle = -999.;
   nP = 0; nN = 0; nipip = 0; nipim = 0; nipi0 = 0; nikp = 0; nikm = 0; nik0 = 0; niem = 0; niother = 0; nNucleus = 0; nUNKNOWN = 0;
   eP = 0.; eN = 0.; ePip = 0.; ePim = 0.; ePi0 = 0.; eOther = 0.;
+  eRecoP = 0.; eRecoN = 0.; eRecoPip = 0.; eRecoPim = 0.; eRecoPi0 = 0.; eRecoOther = 0.;
   vtx_x = -9999.; vtx_y = -9999.; vtx_z = -9999.;
   det_x = -9999.;
   Ev_reco = 0.; Elep_reco = 0.; theta_reco = 0.;

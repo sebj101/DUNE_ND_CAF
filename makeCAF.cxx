@@ -228,6 +228,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     caf.iswgt[parIds[i]] = is_wgt;
   }
 
+  caf.pot = 0.;
+
   // Main event loop
   int N = tree->GetEntries();
   if( par.n > 0 && par.n < N ) N = par.n + par.first;
@@ -254,6 +256,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       else ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
       
       gtree = (TTree*) ghep_file->Get( "gtree" );
+      caf.pot += gtree->GetWeight();
+      printf( "New GHEP file with %g POT, total = %g\n", gtree->GetWeight(), caf.pot );
 
       // can't find GHepRecord
       if( gtree == NULL ) {
@@ -485,7 +489,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   caf.meta_subrun = par.subrun;
 
   // 5E16 POT per file
-  caf.pot = par.nfiles * 5.0E16
+  //caf.pot = par.nfiles * 5.0E16;
 
 }
 
@@ -582,7 +586,7 @@ int main( int argc, char const *argv[] )
 
   loop( caf, par, tree, ghepdir, fhicl_filename );
 
-  caf.version = 2;
+  caf.version = 3;
   printf( "Run %d POT %g\n", caf.meta_run, caf.pot );
   caf.fillPOT();
   caf.write();

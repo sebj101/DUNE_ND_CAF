@@ -41,8 +41,8 @@ RHC=" --rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/marshalc/CAF"
-DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv3"
-CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv3"
+DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv4"
+CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv4"
 STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
@@ -77,16 +77,16 @@ echo "Copying input files for runs ${FIRSTRUN} to ${LASTRUN}..."
 for RUN in $(seq ${FIRSTRUN} ${LASTRUN})
 do
   RDIR=0$((${RUN} / 1000))
-  ifdh ls ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root > ls1.txt
-  ifdh ls ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root > ls2.txt
+  ifdh ls ${INPUTTOP}/edepNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root > ls1.txt
+  ifdh ls ${INPUTTOP}/genieNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root > ls2.txt
   if [ -s ls1.txt ] && [ -s ls2.txt ]; then
-    echo "${CP} ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root"
-    ${CP} ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
-    echo "${CP} ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root"
-    ${CP} ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
+    echo "${CP} ${INPUTTOP}/edepNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root"
+    ${CP} ${INPUTTOP}/edepNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root edep.${RUN}.root
+    echo "${CP} ${INPUTTOP}/genieNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root"
+    ${CP} ${INPUTTOP}/genieNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root genie.${RUN}.root
   else 
-    echo "OOPS! Could not find: ${INPUTTOP}/edepNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
-    echo "  or maybe it was:    ${INPUTTOP}/genieNewFlux/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
+    echo "OOPS! Could not find: ${INPUTTOP}/edepNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.edepsim.root"
+    echo "  or maybe it was:    ${INPUTTOP}/genieNewFluxv2/LAr/${HORN}/${RDIR}/LAr.${NEUTRINO}.${RUN}.ghep.root"
   fi
 done
 

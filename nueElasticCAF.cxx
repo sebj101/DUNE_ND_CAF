@@ -487,7 +487,7 @@ int main()
   std::vector<unsigned int> parIds = rh.GetParameters();
 /*
   // nu+e signal
-  CAF signal( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_signal.root" );
+  CAF signal( "/dune/data/users/marshalc/CAFs/mcc11_v3/ND_nue_signal.root" );
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
@@ -499,7 +499,7 @@ int main()
   signal.pot = 0.;
   signal.meta_run = 0;
   signal.meta_subrun = 0;
-  signal.version = 2;
+  signal.version = 3;
   for( int i = 0; i <= 999; ++i ) {
     printf( "nu+e signal file %d, so far %4.4g POT\n", i, signal.pot );
     TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuESignal/FHC/LAr.neutrino.%d.ghep.root",i) );
@@ -519,7 +519,7 @@ int main()
   signal.write();
 
   // nu_e CC background
-  CAF bkg1( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_CCbkg.root" );
+  CAF bkg1( "/dune/data/users/marshalc/CAFs/mcc11_v3/ND_nue_CCbkg.root" );
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
@@ -531,7 +531,7 @@ int main()
   bkg1.pot = 0.;
   bkg1.meta_run = 0;
   bkg1.meta_subrun = 0;
-  bkg1.version = 2;
+  bkg1.version = 3;
   for( int i = 0; i <= 999; ++i ) {
     printf( "nue CC background file %d, so far %4.4g POT\n", i, bkg1.pot );
     TFile * tf = new TFile( Form("/pnfs/dune/persistent/users/marshalc/CAF/genieNuEBkg/FHC/LAr.neutrino.%d.ghep.root",i) );
@@ -550,7 +550,7 @@ int main()
 */
 
   // NC background
-  CAF bkg2( "/dune/data/users/marshalc/CAFs/mcc11_v2/ND_nue_NCbkg.root" );
+  CAF bkg2( "/dune/data/users/marshalc/CAFs/mcc11_v3/ND_nue_NCbkg.root" );
   for( unsigned int i = 0; i < parIds.size(); ++i ) {
     systtools::SystParamHeader head = rh.GetHeader(parIds[i]);
     printf( "Adding reweight branch %u for %s with %lu shifts\n", parIds[i], head.prettyName.c_str(), head.paramVariations.size() );
@@ -562,7 +562,7 @@ int main()
   bkg2.pot = 0.;
   bkg2.meta_run = 0;
   bkg2.meta_subrun = 0;
-  bkg2.version = 2;
+  bkg2.version = 3;
   int nevt = 0;
   for( int i = 0; i <= 999; ++i ) {
     printf( "NC background file %d, so far %4.4g POT for %d events\n", i, bkg2.pot, nevt );
