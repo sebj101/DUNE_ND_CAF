@@ -3,6 +3,7 @@
 
 #include "TFile.h"
 #include "TTree.h"
+#include "Ntuple/NtpMCEventRecord.h"
 
 class CAF {
 
@@ -48,6 +49,9 @@ public:
   double wgt[100][100];
   bool iswgt[100];
 
+  // store the GENIE record as a branch
+  genie::NtpMCEventRecord * mcrec;
+
   // meta
   double pot;
   int meta_run, meta_subrun;
@@ -56,6 +60,7 @@ public:
   TFile * cafFile;
   TTree * cafMVA;
   TTree * cafPOT;
+  TTree * genie;
 };
 
 #endif

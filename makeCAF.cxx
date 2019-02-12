@@ -5,6 +5,7 @@
 #include "TVector3.h"
 #include "TLorentzVector.h"
 #include "Ntuple/NtpMCEventRecord.h"
+#include "EVGCore/EventRecord.h"
 #include "nusystematics/artless/response_helper.hh"
 #include <stdio.h>
 
@@ -211,7 +212,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   int current_file = -1;
   TFile * ghep_file = NULL;
   TTree * gtree = NULL;
-  genie::NtpMCEventRecord * mcrec = NULL;
+  //genie::NtpMCEventRecord * mcrec = NULL;
 
   std::string mode = ( par.fhc ? "neutrino" : "antineutrino" );
 
@@ -265,7 +266,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         continue;
       }
 
-      gtree->SetBranchAddress( "gmcrec", &mcrec );
+      gtree->SetBranchAddress( "gmcrec", &caf.mcrec );
       current_file = ifileNo;
     }
 
@@ -283,7 +284,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
     // get GENIE event record
     gtree->GetEntry( ievt );
-    genie::EventRecord * event = mcrec->event;
+    genie::EventRecord * event = caf.mcrec->event;
     genie::Interaction * in = event->Summary();
 
     // Get truth stuff out of GENIE ghep record

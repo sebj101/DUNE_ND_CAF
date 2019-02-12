@@ -8,6 +8,10 @@ CAF::CAF( std::string filename )
   cafFile = new TFile( filename.c_str(), "RECREATE" );
   cafMVA = new TTree( "caf", "caf" );
   cafPOT = new TTree( "meta", "meta" );
+  genie = new TTree( "genieEvt", "genieEvt" );
+
+  // initialize the GENIE record
+  mcrec = NULL;
 
   cafMVA->Branch( "run", &run, "run/I" );
   cafMVA->Branch( "subrun", &subrun, "subrun/I" );
@@ -80,6 +84,8 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "Ehad_veto", &Ehad_veto, "Ehad_veto/D" );
   cafMVA->Branch( "pileup_energy", &pileup_energy, "pileup_energy/D" );
 
+  genie->Branch( "genie_record", &mcrec );
+
   cafPOT->Branch( "pot", &pot, "pot/D" );
   cafPOT->Branch( "run", &meta_run, "run/I" );
   cafPOT->Branch( "subrun", &meta_subrun, "subrun/I" );
@@ -91,6 +97,7 @@ CAF::~CAF() {}
 void CAF::fill()
 {
   cafMVA->Fill();
+  genie->Fill();
 }
 
 void CAF::Print()
@@ -111,6 +118,7 @@ void CAF::write()
   cafFile->cd();
   cafMVA->Write();
   cafPOT->Write();
+  genie->Write();
   cafFile->Close();
 }
 
