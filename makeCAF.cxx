@@ -16,7 +16,7 @@ TF1 * tsmear; // angular resolution function
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
   double OA_xcoord;
-  bool fhc, grid;
+  bool fhc, grid, IsGasTPC;
   int seed, run, subrun, first, n, nfiles;
   double trk_muRes, LAr_muRes, ECAL_muRes;
   double em_const, em_sqrtE;
@@ -208,11 +208,20 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   tree->SetBranchAddress( "fsE", fsE );
   tree->SetBranchAddress( "fsTrkLen", fsTrkLen );
 
+  // Gas TPC stuff
+  int gastpc_pi_pl_mult, gastpc_pi_min_mult, gastpc_reco_numu;
+  float gastpc_Ev_reco;
+  if( par.IsGasTPC ) {
+    tree->SetBranchAddress("gastpc_pi_pl_mult", &gastpc_pi_pl_mult);
+    tree->SetBranchAddress("gastpc_pi_min_mult", &gastpc_pi_min_mult);
+    tree->SetBranchAddress("nue_tot", &gastpc_Ev_reco);
+    tree->SetBranchAddress("reco_numu", &gastpc_reco_numu);
+  }
+
   // Get GHEP file for genie::EventRecord from other file
   int current_file = -1;
   TFile * ghep_file = NULL;
   TTree * gtree = NULL;
-  //genie::NtpMCEventRecord * mcrec = NULL;
 
   std::string mode = ( par.fhc ? "neutrino" : "antineutrino" );
 
@@ -239,6 +248,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     tree->GetEntry(ii);
     if( ii % 100 == 0 ) printf( "Event %d of %d...\n", ii, N );
 
+    caf.setToBS();
+
     // set defaults
     for( int j = 0; j < 100; ++j ) {
       caf.nwgt[j] = 7;
@@ -254,7 +265,8 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       if( ghep_file ) ghep_file->Close();
 
       if( par.grid ) ghep_file = new TFile( Form("genie.%d.root", ifileNo) );
-      else ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
+      else if( !par.IsGasTPC ) ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
+      else ghep_file = new TFile( Form("%s/GAr.%s.%d.ghep.root", ghepdir.c_str(), mode.c_str(), ifileNo) );
       
       gtree = (TTree*) ghep_file->Get( "gtree" );
       caf.pot += gtree->GetWeight();
@@ -376,111 +388,123 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
     //--------------------------------------------------------------------------
     // Parameterized reconstruction
     //--------------------------------------------------------------------------
-    // Loop over final-state particles
-    double longest_mip = 0.;
-    double longest_mip_KE = 0.;
-    int longest_mip_charge = 0;
-    caf.reco_lepton_pdg = 0;
-    int electrons = 0;
-    double electron_energy = 0.;
-    int reco_electron_pdg = 0;
-    for( int i = 0; i < nFS; ++i ) {
-      int pdg = fsPdg[i];
-      double p = sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
-      double KE = fsE[i] - sqrt(fsE[i]*fsE[i] - p*p);
-
-      if( (abs(pdg) == 13 || abs(pdg) == 211) && fsTrkLen[i] > longest_mip ) {
-        longest_mip = fsTrkLen[i];
-        longest_mip_KE = KE;
-        caf.reco_lepton_pdg = pdg;
-        if( pdg == 13 || pdg == -211 ) longest_mip_charge = -1;
-        else longest_mip_charge = 1;
-      }
-
-      // pi0 as nu_e
-      if( pdg == 111 ) {
-        TVector3 g1, g2;
-        TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
-        decayPi0( pi0, g1, g2 );
-        double g1conv = rando->Exp( 14. ); // conversion distance
-        bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
-        // if energetic gamma converts in first wire, and other gamma is either too soft or too colinear
-        if( g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01) ) electrons++;
-        electron_energy = g1.Mag();
-        reco_electron_pdg = 111;
-      }
-    }
-
-    // True CC reconstruction
-    if( abs(lepPdg) == 11 ) { // true nu_e
-      recoElectron( caf, par );
-      electrons++;
-      reco_electron_pdg = lepPdg;
-    } else if( abs(lepPdg) == 13 ) { // true nu_mu
-      if     ( muonReco == 2 ) recoMuonTracker( caf, par ); // gas TPC match
-      else if( muonReco == 1 ) recoMuonLAr( caf, par ); // LAr-contained muon, this might get updated to NC...
-      else if( muonReco == 3 ) recoMuonECAL( caf, par ); // ECAL-stopper
-      else { // exiting but poorly-reconstructed muon
-        caf.Elep_reco = longest_mip * 0.0022;
-        caf.reco_q = 0;
-        caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
-        caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 1;
-
-        double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
-        double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
-        double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
-        if( evalTsmear < 0. ) evalTsmear = 0.;
-        double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
-        double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-        caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
-      }
-    } else { // NC -- set PID variables, will get updated later if fake CC
-      caf.Elep_reco = 0.;
-      caf.reco_q = 0;
-      caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
-      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
-    }
-
-    // CC/NC confusion
-    if( electrons == 1 && muonReco <= 1 ) { // NC or numuCC reco as nueCC
-      caf.Elep_reco = electron_energy*0.001;
-      caf.reco_q = 0;
-      caf.reco_numu = 0; caf.reco_nue = 1; caf.reco_nc = 0;
-      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
-      caf.reco_lepton_pdg = reco_electron_pdg;
-    } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < par.CC_trk_length || longest_mip_KE/longest_mip > 3.) ) { 
-      // reco as NC
-      caf.Elep_reco = 0.;
-      caf.reco_q = 0;
-      caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
-      caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+    if( !par.IsGasTPC ) {
+      // Loop over final-state particles
+      double longest_mip = 0.;
+      double longest_mip_KE = 0.;
+      int longest_mip_charge = 0;
       caf.reco_lepton_pdg = 0;
-    } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > par.CC_trk_length && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
-      caf.Elep_reco = longest_mip_KE*0.001 + mmu;
-      if( par.fhc ) caf.reco_q = -1;
-      else {
-        double michel = rando->Rndm();
-        if( longest_mip_charge == 1 && michel < par.michelEff ) caf.reco_q = 1; // correct mu+
-        else if( michel < par.michelEff*0.25 ) caf.reco_q = 1; // incorrect mu-
-        else caf.reco_q = -1; // no reco Michel
+      int electrons = 0;
+      double electron_energy = 0.;
+      int reco_electron_pdg = 0;
+      for( int i = 0; i < nFS; ++i ) {
+        int pdg = fsPdg[i];
+        double p = sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
+        double KE = fsE[i] - sqrt(fsE[i]*fsE[i] - p*p);
+
+        if( (abs(pdg) == 13 || abs(pdg) == 211) && fsTrkLen[i] > longest_mip ) {
+          longest_mip = fsTrkLen[i];
+          longest_mip_KE = KE;
+          caf.reco_lepton_pdg = pdg;
+          if( pdg == 13 || pdg == -211 ) longest_mip_charge = -1;
+          else longest_mip_charge = 1;
+        }
+
+        // pi0 as nu_e
+        if( pdg == 111 ) {
+          TVector3 g1, g2;
+          TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
+          decayPi0( pi0, g1, g2 );
+          double g1conv = rando->Exp( 14. ); // conversion distance
+          bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
+          // if energetic gamma converts in first wire, and other gamma is either too soft or too colinear
+          if( g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01) ) electrons++;
+          electron_energy = g1.Mag();
+          reco_electron_pdg = 111;
+        }
       }
-      caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
-      caf.muon_contained = 1; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+
+      // True CC reconstruction
+      if( abs(lepPdg) == 11 ) { // true nu_e
+        recoElectron( caf, par );
+        electrons++;
+        reco_electron_pdg = lepPdg;
+      } else if( abs(lepPdg) == 13 ) { // true nu_mu
+        if     ( muonReco == 2 ) recoMuonTracker( caf, par ); // gas TPC match
+        else if( muonReco == 1 ) recoMuonLAr( caf, par ); // LAr-contained muon, this might get updated to NC...
+        else if( muonReco == 3 ) recoMuonECAL( caf, par ); // ECAL-stopper
+        else { // exiting but poorly-reconstructed muon
+          caf.Elep_reco = longest_mip * 0.0022;
+          caf.reco_q = 0;
+          caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+          caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 1;
+
+          double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+          double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+          double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+          if( evalTsmear < 0. ) evalTsmear = 0.;
+          double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+          double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+          caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+        }
+      } else { // NC -- set PID variables, will get updated later if fake CC
+        caf.Elep_reco = 0.;
+        caf.reco_q = 0;
+        caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
+        caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+      }
+
+      // CC/NC confusion
+      if( electrons == 1 && muonReco <= 1 ) { // NC or numuCC reco as nueCC
+        caf.Elep_reco = electron_energy*0.001;
+        caf.reco_q = 0;
+        caf.reco_numu = 0; caf.reco_nue = 1; caf.reco_nc = 0;
+        caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+        caf.reco_lepton_pdg = reco_electron_pdg;
+      } else if( muonReco <= 1 && !(abs(lepPdg) == 11 && caf.Elep_reco > 0.) && (longest_mip < par.CC_trk_length || longest_mip_KE/longest_mip > 3.) ) { 
+        // reco as NC
+        caf.Elep_reco = 0.;
+        caf.reco_q = 0;
+        caf.reco_numu = 0; caf.reco_nue = 0; caf.reco_nc = 1;
+        caf.muon_contained = 0; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+        caf.reco_lepton_pdg = 0;
+      } else if( (abs(lepPdg) == 12 || abs(lepPdg) == 14) && longest_mip > par.CC_trk_length && longest_mip_KE/longest_mip < 3. ) { // true NC reco as CC numu
+        caf.Elep_reco = longest_mip_KE*0.001 + mmu;
+        if( par.fhc ) caf.reco_q = -1;
+        else {
+          double michel = rando->Rndm();
+          if( longest_mip_charge == 1 && michel < par.michelEff ) caf.reco_q = 1; // correct mu+
+          else if( michel < par.michelEff*0.25 ) caf.reco_q = 1; // incorrect mu-
+          else caf.reco_q = -1; // no reco Michel
+        }
+        caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+        caf.muon_contained = 1; caf.muon_tracker = 0; caf.muon_ecal = 0; caf.muon_exit = 0;
+      }
+
+      // Hadronic energy calorimetrically
+      caf.Ev_reco = caf.Elep_reco + hadTot*0.001;
+      caf.Ehad_veto = hadCollar;
+      caf.eRecoP = hadP*0.001;
+      caf.eRecoN = hadN*0.001;
+      caf.eRecoPip = hadPip*0.001;
+      caf.eRecoPim = hadPim*0.001;
+      caf.eRecoPi0 = hadPi0*0.001;
+      caf.eRecoOther = hadOther*0.001;
+
+      caf.pileup_energy = 0.;
+      if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
+      caf.Ev_reco += caf.pileup_energy;
+    } else {
+      // gas TPC
+      if( gastpc_reco_numu == 1 ) {
+        recoMuonTracker( caf, par );
+        caf.gastpc_pi_pl_mult = gastpc_pi_pl_mult;
+        caf.gastpc_pi_min_mult = gastpc_pi_min_mult;
+        caf.Ev_reco = gastpc_Ev_reco*0.001;
+      }
     }
 
-    // Hadronic energy calorimetrically
-    caf.Ev_reco = caf.Elep_reco + hadTot*0.001;
-    caf.Ehad_veto = hadCollar;
-    caf.eRecoP = hadP*0.001;
-    caf.eRecoN = hadN*0.001;
-    caf.eRecoPip = hadPip*0.001;
-    caf.eRecoPim = hadPim*0.001;
-    caf.eRecoPi0 = hadPi0*0.001;
-    caf.eRecoOther = hadOther*0.001;
-
-    caf.pileup_energy = 0.;
-    if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
-    caf.Ev_reco += caf.pileup_energy;
+    //printf( "Ev reco %f pion mult %d %d Elep reco %f reco numu %d reco q %d Ehad_veto %f muon_tracker %d\n", caf.Ev_reco, caf.gastpc_pi_pl_mult, caf.gastpc_pi_min_mult, caf.Elep_reco, caf.reco_numu, caf.reco_q, caf.Ehad_veto, caf.muon_tracker );
 
     caf.fill();
   }
@@ -488,9 +512,6 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   // set POT
   caf.meta_run = par.run;
   caf.meta_subrun = par.subrun;
-
-  // 5E16 POT per file
-  //caf.pot = par.nfiles * 5.0E16;
 
 }
 
@@ -510,6 +531,7 @@ int main( int argc, char const *argv[] )
 
   // Make parameter object and set defaults
   params par;
+  par.IsGasTPC = false;
   par.OA_xcoord = 0.; // on-axis by default
   par.fhc = true;
   par.grid = false;
@@ -565,6 +587,9 @@ int main( int argc, char const *argv[] )
     } else if( argv[i] == std::string("--rhc") ) {
       par.fhc = false;
       i += 1;
+    } else if( argv[i] == std::string("--gastpc") ) {
+      par.IsGasTPC = true;
+      i += 1;
     } else i += 1; // look for next thing
   }
 
@@ -575,11 +600,12 @@ int main( int argc, char const *argv[] )
   if( par.grid ) printf( "Running grid mode\n" );
   else printf( "Running test mode\n" );
   printf( "Output CAF file: %s\n", outfile.c_str() );
-
-  CAF caf( outfile );
+  if( par.IsGasTPC ) printf( "Running gas TPC\n" );
 
   rando = new TRandom3( par.seed );
+  CAF caf( outfile, par.IsGasTPC );
 
+  // LAr driven smearing, maybe we want to change for gas?
   tsmear = new TF1( "tsmear", "0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
 
   TFile * tf = new TFile( edepfile.c_str() );
