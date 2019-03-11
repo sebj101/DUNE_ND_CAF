@@ -62,11 +62,18 @@ void makeCov()
   TTree * cafFDmu = (TTree*) fdFileMu->Get( "cafTree" );
   TTree * cafFDe  = (TTree*) fdFileE->Get( "cafTree" );
 
+  // gas TPC files
+
+
+
   // CAF variables for ND & FD
   double vtx_x, vtx_y, vtx_z, LepE, LepNuAngle, Ev, Ev_reco, Elep_reco;
   double eRecoP, eRecoN, eRecoPip, eRecoPim, eRecoPi0;
   double eP, eN, ePip, ePim, ePi0;
   int LepPDG;
+
+  // Additional gas TPC variables for pion counting
+
 
   // CAF variables for ND only
   int reco_numu, muon_contained, muon_tracker, reco_q;
@@ -79,11 +86,13 @@ void makeCov()
   TH2D * histCV = new TH2D( "histCV", ";Reconstructed E_{#nu};Reconstructed y", n_Ebins, Ebins, n_ybins, ybins );
   TH1D * histCV_FDmu = new TH1D( "histCV_FDmu", ";Reconstructed E_{#nu}", n_Ebins, Ebins );
   TH1D * histCV_FDe = new TH1D( "histCV_FDe", ";Reconstructed E_{#nu}", n_Ebins, Ebins );
+  TH2D * histCV_gas = new TH2D( "histCV_gas", ";Number of charged pions;Reconstructed E_{#nu}", 3, 0., 3., n_Ebins, Ebins );
   TH2D * hists[nu];
   TH1D * hists_FDmu[nu];
   TH1D * hists_FDe[nu];
   TH2D * histsAccOnly[nu];
   TH2D * histsEscaleOnly[nu];
+  TH2D * hists_gas[nu];
 
   // Uncertainties for each universe -- ND
   TH2D * muAccThrow[nu];
@@ -98,6 +107,10 @@ void makeCov()
   double EhadRes[nu];
   double EEMRes[nu];
   double EneutRes[nu];
+
+  // Gas TPC uncertainties
+  TF1 * Pscale[nu];
+  double Ethreshold[nu];
 
   // FD
   TF1 * EtotThrowFD[nu];
@@ -121,6 +134,8 @@ void makeCov()
     muAccThrow[u] = new TH2D( Form("muAccThrow%03d", u), ";Muon p_{L};Muon p_{T}", 28, plbins, 16, ptbins );
     hAccThrow[u] = new TH1D( Form("hAccThrow%03d", u), ";Hadronic energy", 21, hbins );
 
+    hists_gas[u] = new TH2D( Form("hGas%03d",u), ";Number of charged pions;Reconstructed E_{#nu}", 3, 0., 3., n_Ebins, Ebins );
+
     // All the energy systematics as TF1 vs. energy
     EtotThrow[u]   = new TF1( Form("Etot%03d", u),   "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
     EmuThrowLAr[u] = new TF1( Form("EmuLAr%03d", u), "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
@@ -128,6 +143,9 @@ void makeCov()
     EhadThrow[u]   = new TF1( Form("Ehad%03d", u),   "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
     EEMThrow[u]    = new TF1( Form("EEM%03d", u),    "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
     EneutThrow[u]  = new TF1( Form("Eneut%03d", u),  "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
+    // gas TPC
+    Pscale[u] = new TF1( Form("Pscale%03d", u), "[0] + [1]*x + [2]*pow(x,2.)", 0., 100. );
+
     // FD
     EtotThrowFD[u]   = new TF1( Form("EtotFD%03d", u),   "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
     EmuThrowFD[u] = new TF1( Form("EmuFD%03d", u), "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
@@ -143,6 +161,9 @@ void makeCov()
     EhadResFD[u] = rando->Gaus(0., 0.1);
     EEMResFD[u] = rando->Gaus(0., 0.1);
     EneutResFD[u] = rando->Gaus(0., 0.3);
+
+    Ethreshold[u] = rando->Gaus( 5., 2.5 ); // 5 MeV threshold, 2.5 MeV width
+    if( Ethreshold[u] < 1. ) Ethreshold[u] = 1.; // truncate gaussian at 1 MeV threshold
 
     // set the parameters
     EtotThrow[u]->SetParameter( 0, rando->Gaus(0., 0.02) );
@@ -168,6 +189,11 @@ void makeCov()
     EneutThrow[u]->SetParameter( 0, rando->Gaus(0., 0.2) );
     EneutThrow[u]->SetParameter( 1, rando->Gaus(0., 0.3) );
     EneutThrow[u]->SetParameter( 2, rando->Gaus(0., 0.3) );
+
+    // gas TPC
+    Pscale[u]->SetParameter( 0, rando->Gaus(0., 0.01) );
+    Pscale[u]->SetParameter( 1, rando->Gaus(0., 0.002) );
+    Pscale[u]->SetParameter( 2, rando->Gaus(0., 0.001) );
 
     // FD
     EtotThrowFD[u]->SetParameter( 0, rando->Gaus(0., 0.02) );
@@ -231,6 +257,7 @@ void makeCov()
   // some validation plots
   TH2D * val_Ev[nu];
   TH2D * val_y[nu];
+  // add gas tpc validation plots
   for( int u = 0; u < nu; ++u ) {
     val_Ev[u] = new TH2D( Form("val_Ev_%03d",u), ";Reco E_{#nu};Shifted E_{#nu}", 100, 0., 10., 100, 0., 10. );
     val_y[u] = new TH2D( Form("val_y_%03d",u), ";Reco y;Shifted y", 100, 0., 1., 100, 0., 1. );
@@ -348,6 +375,13 @@ void makeCov()
       val_y[u]->Fill( (Ev_reco - Elep_reco)/Ev_reco, Ehad_reco_shift/Ev_reco_shift );
     }
   }
+
+  // Gas TPC loop
+
+
+
+
+
 
   // FD numu
   cafFDmu->SetBranchAddress( "vtx_x", &vtx_x );
@@ -601,6 +635,12 @@ void makeCov()
   TMatrixD covAccInv( TMatrixD::kInverted, covAcc );
   TMatrixD covEscaleInv( TMatrixD::kInverted, covEscale );
 
+  // Gas TPC matrix
+
+
+
+
+
   // FD matrices
   // Now determine the actual covariance
   n_bins = n_Ebins;
@@ -653,6 +693,7 @@ void makeCov()
   covEscale.Write("nd_frac_cov_EscaleOnly");
   covMu.Write("fd_numu_frac_cov");
   covE.Write("fd_nue_frac_cov");
+  // write gas matrix
 
   TCanvas * c = new TCanvas();
   covAcc.Draw("colz");
