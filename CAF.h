@@ -8,7 +8,7 @@
 class CAF {
 
 public:
-  CAF( std::string filename );
+  CAF( std::string filename, bool isGas = false );
   ~CAF();
   void fill();
   void fillPOT();
@@ -41,6 +41,9 @@ public:
   int muon_contained, muon_tracker, muon_ecal, muon_exit, reco_lepton_pdg;
   double Ehad_veto;
   double pileup_energy;
+
+  // Gas TPC variables
+  int gastpc_pi_min_mult, gastpc_pi_pl_mult;
 
   // reweights -- make sure big enough to hold all the variations for each knob, and all the knobs
   // the names, and what they actually mean, are determined automatically from the fhicl input file

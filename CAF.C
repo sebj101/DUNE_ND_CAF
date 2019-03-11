@@ -3,7 +3,7 @@
 
 #include "CAF.h"
 
-CAF::CAF( std::string filename )
+CAF::CAF( std::string filename, bool isGas )
 {
   cafFile = new TFile( filename.c_str(), "RECREATE" );
   cafMVA = new TTree( "caf", "caf" );
@@ -84,6 +84,11 @@ CAF::CAF( std::string filename )
   cafMVA->Branch( "Ehad_veto", &Ehad_veto, "Ehad_veto/D" );
   cafMVA->Branch( "pileup_energy", &pileup_energy, "pileup_energy/D" );
 
+  if( isGas ) {
+    cafMVA->Branch( "gastpc_pi_pl_mult", &gastpc_pi_pl_mult, "gastpc_pi_pl_mult/I" );
+    cafMVA->Branch( "gastpc_pi_min_mult", &gastpc_pi_min_mult, "gastpc_pi_min_mult/I" ); 
+  }
+
   genie->Branch( "genie_record", &mcrec );
 
   cafPOT->Branch( "pot", &pot, "pot/D" );
@@ -150,6 +155,9 @@ void CAF::setToBS()
   muon_contained = 0; muon_tracker = 0; muon_ecal = 0; muon_exit = 0; reco_lepton_pdg = 0;
   Ehad_veto = 0.;
   pileup_energy = 0.;
+
+  gastpc_pi_pl_mult = 0;
+  gastpc_pi_min_mult = 0;
 
   for( int i = 0; i < 100; ++i ) {
     nwgt[i] = 0;
