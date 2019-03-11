@@ -46,7 +46,7 @@ RDIR=0$((${RNDSEED} / 1000))
 
 USERDIR="/pnfs/dune/persistent/users/marshalc/CAF"
 INDIR="/pnfs/dune/persistent/users/marshalc/CAF/genieNewFluxv2/${OUTFLAG}/${HORN}/${RDIR}"
-OUTDIR="/pnfs/dune/persistent/users/marshalc/CAF/edepNewFlux"
+OUTDIR="/pnfs/dune/persistent/users/marshalc/CAF/edepNewFluxv2"
 
 ##################################################
 

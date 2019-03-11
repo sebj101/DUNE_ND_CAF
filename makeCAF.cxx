@@ -587,7 +587,7 @@ int main( int argc, char const *argv[] )
 
   loop( caf, par, tree, ghepdir, fhicl_filename );
 
-  caf.version = 3;
+  caf.version = 4;
   printf( "Run %d POT %g\n", caf.meta_run, caf.pot );
   caf.fillPOT();
   caf.write();

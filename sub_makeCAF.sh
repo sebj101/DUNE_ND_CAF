@@ -18,8 +18,8 @@ kill -INT $$
 fi
 
 if [ "${NPER}" = "" ]; then
-echo "Number of runs per file not specified, using 50"
-NPER=50
+echo "Number of runs per file not specified, using 1"
+NPER=1
 fi
 
 CP="ifdh cp"
@@ -30,7 +30,7 @@ PROCESS=0
 fi
 
 FIRSTRUN=$((PROCESS * NPER))
-LASTRUN=$((PROCESS * NPER + NPER))
+LASTRUN=$((PROCESS * NPER + NPER - 1))
 
 NEUTRINO="neutrino"
 RHC=""
@@ -41,8 +41,8 @@ RHC=" --rhc"
 fi
 
 INPUTTOP="/pnfs/dune/persistent/users/marshalc/CAF"
-DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv4"
-CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv4"
+DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv5"
+CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv5"
 STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
 
 ##################################################
@@ -102,8 +102,8 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:$
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
-echo "python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root"
-python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run $((LASTRUN-1)) ${RHC} --grid --outfile dump.root
+echo "python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run ${LASTRUN} ${RHC} --grid --outfile dump.root"
+python dumpTree.py --topdir ${PWD} --first_run ${FIRSTRUN} --last_run ${LASTRUN} ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
 echo "Running makeCAF..."

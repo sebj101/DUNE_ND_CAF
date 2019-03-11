@@ -28,7 +28,11 @@ const double mmu = 0.10537; // GeV
 
 // initialize variable resolutions
 TF1 * esmear;
-TF1 * tsmear;
+TF1 * tsmear1;
+TF1 * tsmear2;
+TF1 * tsmearRatio;
+
+TF1 * doubleGaus;
 
 TRandom3 * rando;
 
@@ -37,9 +41,25 @@ nusyst::response_helper rh( "./fhicl.fcl" );
 void init()
 {
   esmear = new TF1( "esmear", "0.03 + 0.05*pow(x,-0.5)", 0., 999.9 );
-  tsmear = new TF1( "tsmear", "3. + 0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
+  tsmear1 = new TF1( "tsmear1", "3.29 + 3.485*pow(x,-1.)", 0., 999.9 );
+  tsmear2 = new TF1( "tsmear2", "10.287 + 4.889*pow(x,-1.)", 0., 999.9 );
+  tsmearRatio = new TF1( "tsmearRatio", "0.039 + 0.551*pow(x,-1.) - 0.268*pow(x,-0.5)", 0., 999.9 );
+
+  doubleGaus = new TF1( "dg", "[0]*TMath::Exp(-0.5*pow(x/[1],2)) + [2]*TMath::Exp(-0.5*pow(x/[3],2))", -1000., 1000. );
 
   rando = new TRandom3(12345);
+}
+
+void setDG( double Ee )
+{
+  double p1 = tsmear1->Eval(Ee);
+  double p3 = tsmear2->Eval(Ee);
+  double ratio = tsmearRatio->Eval(Ee);
+
+  doubleGaus->SetParameter( 1, p1 );
+  doubleGaus->SetParameter( 3, p3 );
+  doubleGaus->SetParameter( 0, 1. );
+  doubleGaus->SetParameter( 2, ratio );
 }
 
 void decayPi0( TLorentzVector &pi0, TVector3 &gamma1, TVector3 &gamma2 )
@@ -214,12 +234,11 @@ void loop( TTree * tree, int cat, CAF &caf )
             double evalEsmear = esmear->Eval(Ttrue);
             if( evalEsmear < 0. ) evalEsmear = 0.;
 
-            double evalTsmear = tsmear->Eval(Ttrue);
-            if( evalTsmear < 0. ) evalTsmear = 0.;
+            setDG(Ttrue);
 
             double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
-            double smearx = best_thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-            double smeary = best_thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double smearx = best_thetaX + doubleGaus->GetRandom();
+            double smeary = best_thetaY + doubleGaus->GetRandom();
             double reco_theta = sqrt( smearx*smearx + smeary*smeary );
 
             // Lepton truth info
@@ -227,7 +246,9 @@ void loop( TTree * tree, int cat, CAF &caf )
             caf.LepMomY = perf.y();
             caf.LepMomZ = perf.z();
             caf.LepE = Ttrue;
-            caf.LepNuAngle = perf.Angle( nudir );
+            caf.LepNuAngle = acos(perf.z()/perf.Mag());
+
+            //printf( "Ee %2.2f ThetaX %1.1f --> %1.1f, ThetaY %1.1f --> %1.1f true theta %1.1f reco %1.1f\n", Ttrue, best_thetaX, smearx, best_thetaY, smeary, reco_theta, caf.LepNuAngle*1000. );
 
             double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
             double reco_enu = ereco / reco_y;
@@ -347,7 +368,7 @@ void loop( TTree * tree, int cat, CAF &caf )
             caf.LepMomY = perf.y();
             caf.LepMomZ = perf.z();
             caf.LepE = mom.E();
-            caf.LepNuAngle = perf.Angle( nudir );
+            caf.LepNuAngle = acos(perf.z()/perf.Mag());
 
             if( abs(pdg) == 11 || abs(pdg) == 13 ) {
               caf.isCC = 1;
@@ -390,12 +411,11 @@ void loop( TTree * tree, int cat, CAF &caf )
             double evalEsmear = esmear->Eval(Ttrue);
             if( evalEsmear < 0. ) evalEsmear = 0.;
 
-            double evalTsmear = tsmear->Eval(Ttrue);
-            if( evalTsmear < 0. ) evalTsmear = 0.;
+            setDG(Ttrue);
 
             double ereco = Ttrue * ( 1. + rando->Gaus(0., evalEsmear) );
-            double smearx = thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-            double smeary = thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double smearx = thetaX + doubleGaus->GetRandom();
+            double smeary = thetaY + doubleGaus->GetRandom();
             double reco_theta = sqrt( smearx*smearx + smeary*smeary );
 
             double reco_y = 1. - (ereco * (1. - cos(reco_theta/1000.)))/me;
@@ -414,8 +434,7 @@ void loop( TTree * tree, int cat, CAF &caf )
 
             double evalEsmear = esmear->Eval(gamma1.Mag());
             if( evalEsmear < 0. ) evalEsmear = 0.;
-            double evalTsmear = tsmear->Eval(gamma1.Mag());
-            if( evalTsmear < 0. ) evalTsmear = 0.;
+            setDG(gamma1.Mag());
 
             double reco_e_g1 = gamma1.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
             double reco_e_g2 = gamma2.Mag() * ( 1. + rando->Gaus(0., evalEsmear) );
@@ -429,16 +448,16 @@ void loop( TTree * tree, int cat, CAF &caf )
               ereco = reco_e_g1;
               double thetaX = atan( gamma1.x() / gamma1.z() );
               double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
-              double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-              double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+              double smearx = 1000*thetaX + doubleGaus->GetRandom();
+              double smeary = 1000*thetaY + doubleGaus->GetRandom();
               reco_theta = sqrt( smearx*smearx + smeary*smeary );
-            } else if( 1000.*gamma1.Angle(gamma2) < evalTsmear ) {
+            } else if( 1000.*gamma1.Angle(gamma2) < 5.0 ) {
               ++photon_candidates;
               ereco = reco_e_g1 + reco_e_g2;
               double thetaX = atan( gamma1.x() / gamma1.z() );
               double thetaY = atan( gamma1.y() / gamma1.z() ); // convert to mrad for smearing
-              double smearx = 1000*thetaX + rando->Gaus(0., evalTsmear/sqrt(2.));
-              double smeary = 1000*thetaY + rando->Gaus(0., evalTsmear/sqrt(2.));
+              double smearx = 1000*thetaX + doubleGaus->GetRandom();
+              double smeary = 1000*thetaY + doubleGaus->GetRandom();
               reco_theta = sqrt( smearx*smearx + smeary*smeary );
             } else {
               extraE += (reco_e_g1 + reco_e_g2);
@@ -517,6 +536,7 @@ int main()
   }
   signal.fillPOT();
   signal.write();
+
 
   // nu_e CC background
   CAF bkg1( "/dune/data/users/marshalc/CAFs/mcc11_v3/ND_nue_CCbkg.root" );
