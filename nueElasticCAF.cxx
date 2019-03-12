@@ -169,6 +169,7 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.isCC = 0;
       caf.mode = 7; // nu+e
       caf.LepPDG = 11; 
+      caf.isFD = 0;
 
       caf.nP = 0; caf.nN = 0; caf.nipip = 0; caf.nipi0 = 0; caf.nikm = 0; caf.nik0 = 0; 
       caf.niem = 0; caf.niother = 0; caf.nNucleus = 0; caf.nUNKNOWN = 0;
@@ -286,6 +287,7 @@ void loop( TTree * tree, int cat, CAF &caf )
       caf.event = ii;
       caf.isCC = 0; // overwritten in particle loop
       caf.LepPDG = 0; // overwritten in particle loop
+      caf.isFD = 0;
 
       caf.nP = 0; caf.nN = 0; caf.nipip = 0; caf.nipi0 = 0; caf.nikm = 0; caf.nik0 = 0; 
       caf.niem = 0; caf.niother = 0; caf.nNucleus = 0; caf.nUNKNOWN = 0;
