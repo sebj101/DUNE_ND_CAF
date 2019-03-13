@@ -76,7 +76,7 @@ void makeCov()
   TH1D * hHadUnc = (TH1D*) tf_AccUnc->Get( "hunc" );
 
   TChain * cafTree = new TChain( "cafTree", "cafTree" );
-  cafTree->Add( "/pnfs/dune/data/users/LBL_TDR/v4/ND_FHC_*.root" );
+  cafTree->Add( "/pnfs/dune/persistent/users/LBL_TDR/v4/ND_FHC_*.root" );
 
   TFile * fdFileMu = new TFile( "/pnfs/dune/persistent/users/LBL_TDR/CAFs/v4/FD_FHC_nonswap.root" );
   TFile * fdFileE = new TFile( "/pnfs/dune/persistent/users/LBL_TDR/CAFs/v4/FD_FHC_nueswap.root" );
@@ -133,6 +133,7 @@ void makeCov()
 
   // Gas TPC uncertainties
   TF1 * Pscale[nu];
+  TF1 * ECALscale[nu];
   double trkThreshold[nu];
 
   // FD
@@ -168,6 +169,7 @@ void makeCov()
     EneutThrow[u]  = new TF1( Form("Eneut%03d", u),  "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
     // gas TPC
     Pscale[u] = new TF1( Form("Pscale%03d", u), "[0] + [1]*x + [2]*pow(x,2.)", 0., 100. );
+    ECALscale[u] = new TF1( Form("ECALscale%03d", u), "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
 
     // FD
     EtotThrowFD[u]   = new TF1( Form("EtotFD%03d", u),   "[0] + [1]*x + [2]*pow(x+0.1,-0.5)", 0., 100. );
@@ -185,7 +187,7 @@ void makeCov()
     EEMResFD[u] = rando->Gaus(0., 0.1);
     EneutResFD[u] = rando->Gaus(0., 0.3);
 
-    trkThreshold[u] = rando->Gaus( 6., 3. ); // 5 MeV threshold, 2.5 MeV width
+    trkThreshold[u] = rando->Gaus( 6., 3. ); // 6 MeV threshold, 2.5 MeV width
     if( trkThreshold[u] < 1. ) trkThreshold[u] = 1.; // truncate gaussian at 1 MeV threshold
 
     // set the parameters
@@ -217,6 +219,10 @@ void makeCov()
     Pscale[u]->SetParameter( 0, rando->Gaus(0., 0.01) );
     Pscale[u]->SetParameter( 1, rando->Gaus(0., 0.002) );
     Pscale[u]->SetParameter( 2, rando->Gaus(0., 0.001) );
+
+    ECALscale[u]->SetParameter( 0, rando->Gaus(0., 0.05) );
+    ECALscale[u]->SetParameter( 1, rando->Gaus(0., 0.05) );
+    ECALscale[u]->SetParameter( 2, rando->Gaus(0., 0.05) );
 
     // FD
     EtotThrowFD[u]->SetParameter( 0, rando->Gaus(0., 0.02) );
@@ -288,8 +294,8 @@ void makeCov()
     val_Ev[u] = new TH2D( Form("val_Ev_%03d",u), ";Reco E_{#nu};Shifted E_{#nu}", 100, 0., 10., 100, 0., 10. );
     val_y[u] = new TH2D( Form("val_y_%03d",u), ";Reco y;Shifted y", 100, 0., 1., 100, 0., 1. );
 
-    val_npi_gas[nu] = new TH2D( Form("val_gas_npi_%03d",u), ";CV N_{#pi};Shifted N_{#pi}", 3, 0., 3. );
-    val_Ev_gas[nu] = new TH2D( Form("val_gas_Ev_%03d",u), ";CV Ev;Shifted Ev", 100, 0., 10., 100, 0., 10. );
+    val_npi_gas[u] = new TH2D( Form("val_gas_npi_%03d",u), ";CV N_{#pi};Shifted N_{#pi}", 3, 0., 3., 3, 0., 3. );
+    val_Ev_gas[u] = new TH2D( Form("val_gas_Ev_%03d",u), ";CV Ev;Shifted Ev", 100, 0., 10., 100, 0., 10. );
   }
 
     
@@ -348,7 +354,7 @@ void makeCov()
   for( int ii = 0; ii < N; ++ii ) {
     cafTree->GetEntry(ii);
 
-    if( ii % 100000 == 0 ) printf( "Event %d of %d...\n", ii, N );
+    if( ii % 100000 == 0 ) printf( "ND LAr event %d of %d...\n", ii, N );
 
     // FV cut
     if( abs(vtx_x) > 300. || abs(vtx_y) > 100. || vtx_z < 50. || vtx_z < 350. ) continue;
@@ -439,11 +445,11 @@ void makeCov()
   gasCaf->SetBranchStatus( "trkLen", 1 );
   gasCaf->SetBranchStatus( "partEvReco", 1 );
 
-  int N = gasCaf->GetEntries();
+  N = gasCaf->GetEntries();
   for( int ii = 0; ii < N; ++ii ) {
     gasCaf->GetEntry(ii);
 
-    if( ii % 100000 == 0 ) printf( "Event %d of %d...\n", ii, N );
+    if( ii % 100000 == 0 ) printf( "ND GAr event %d of %d...\n", ii, N );
 
     // FV cut
     if( abs(vtx_x) > 200. ) continue; // endcap cut
@@ -464,12 +470,19 @@ void makeCov()
       double shift_Ev_reco = 0.;
       int pimult = 0;
       for( int i = 0; i < nFSP; ++i ) {
-        double preco = getP( partEvReco[i], pdg[i] );
-        double pshiftfrac = Pscale[u]->Eval(preco);
-        double precoshift = preco*(1.+pshiftfrac);
+        if( trkLen[i] > trkThreshold[u] ) {
 
-        if( trkLen[i] > trkThreshold[u] && (pdg[i]== 211 || pdg[i]==-211) ) pimult++;
-        if( trkLen[i] > trkThreshold[u] ) shift_Ev_reco += getE( precoshift, pdg[i] );
+          double preco = getP( partEvReco[i], pdg[i] );
+          double pshiftfrac = Pscale[u]->Eval(preco);
+          double precoshift = preco*(1.+pshiftfrac);
+
+          if( pdg[i] == 211 || pdg[i] == -211 ) pimult++;
+          shift_Ev_reco += getE( precoshift, pdg[i] );
+        }
+        if( pdg[i] == 111 || pdg[i] == 22 ) {
+          double shiftE = partEvReco[i]*(1.+ECALscale[u]->Eval(partEvReco[i]));
+          shift_Ev_reco += shiftE;
+        }
       }
 
       if( pimult > 2 ) pimult = 2;
@@ -861,7 +874,7 @@ void makeCov()
     val_npi_gas[u]->Write();
     val_Ev_gas[u]->Write();
   }
-  covGas->Write( "gas_cov" );
+  covGas.Write( "gas_cov" );
 }
 
 
