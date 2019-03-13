@@ -3,6 +3,7 @@
 #include "TH1.h"
 #include "TH2.h"
 #include "TTree.h"
+#include "TChain.h"
 #include "TRandom3.h"
 #include "TMatrixD.h"
 #include "TVectorT.h"
@@ -30,6 +31,26 @@ void get2Dbins( int b1D, int &eb, int &yb )
   yb = ((b1D-1) % n_ybins) + 1;
 }
 
+double getP( double e, int pdg )
+{
+  if( abs(pdg) == 11 ) return sqrt(e*e - 0.000511*0.000511);
+  else if( abs(pdg) == 13 ) return sqrt(e*e - 0.105658*0.105658);
+  else if( abs(pdg) == 211 ) return sqrt(e*e - 0.13957*0.13957);
+  else if( abs(pdg) == 321 ) return sqrt(e*e - 0.49366*0.49366);
+  else if( abs(pdg) == 2212 ) return sqrt((e+0.93827)*(e+0.93827) - 0.93827*0.93827);
+  else return e;
+}
+
+double getE( double p, int pdg )
+{
+  if( abs(pdg) == 11 ) return sqrt(p*p + 0.000511*0.000511);
+  else if( abs(pdg) == 13 ) return sqrt(p*p + 0.105658*0.105658);
+  else if( abs(pdg) == 211 ) return sqrt(p*p + 0.13957*0.13957);
+  else if( abs(pdg) == 321 ) return sqrt(p*p + 0.49366*0.49366);
+  else if( abs(pdg) == 2212 ) return sqrt(p*p + 0.93827*0.93827) - 0.93827;
+  else return p;
+}
+
 void fix( TMatrixD &cov )
 {
   // get rid of super-tiny negative eigenvalues
@@ -50,21 +71,21 @@ void makeCov()
   TRandom3 * rando = new TRandom3(12345);
 
   // Get acceptance uncertainty histograms
-  TFile * tf_AccUnc = new TFile( "/dune/data/users/marshalc/CAFs/mcc11_v4/ND_eff_syst.root" );
+  TFile * tf_AccUnc = new TFile( "/dune/data/users/marshalc/CAFs/mcc11_v3/ND_eff_syst.root" );
   TH2D * hMuUnc = (TH2D*) tf_AccUnc->Get( "unc" );
   TH1D * hHadUnc = (TH1D*) tf_AccUnc->Get( "hunc" );
 
-  TFile * cafFile = new TFile( "/dune/data/users/marshalc/CAFs/mcc11_v4/ND_FHC_CAF.root" );
-  TTree * cafTree = (TTree*) cafFile->Get( "cafTree" );
+  TChain * cafTree = new TChain( "cafTree", "cafTree" );
+  cafTree->Add( "/pnfs/dune/data/users/LBL_TDR/v4/ND_FHC_*.root" );
 
-  TFile * fdFileMu = new TFile( "/dune/data/users/marshalc/CAFs/mcc11_v4/FD_FHC_nonswap.root" );
-  TFile * fdFileE = new TFile( "/dune/data/users/marshalc/CAFs/mcc11_v4/FD_FHC_nueswap.root" );
+  TFile * fdFileMu = new TFile( "/pnfs/dune/persistent/users/LBL_TDR/CAFs/v4/FD_FHC_nonswap.root" );
+  TFile * fdFileE = new TFile( "/pnfs/dune/persistent/users/LBL_TDR/CAFs/v4/FD_FHC_nueswap.root" );
   TTree * cafFDmu = (TTree*) fdFileMu->Get( "cafTree" );
   TTree * cafFDe  = (TTree*) fdFileE->Get( "cafTree" );
 
   // gas TPC files
-
-
+  TFile * gasFile = new TFile( "/pnfs/dune/persistent/users/LBL_TDR/CAFs/v4/NDgas_FHC.root" );
+  TTree * gasCaf = (TTree*) gasFile->Get( "cafTree" );
 
   // CAF variables for ND & FD
   double vtx_x, vtx_y, vtx_z, LepE, LepNuAngle, Ev, Ev_reco, Elep_reco;
@@ -73,7 +94,9 @@ void makeCov()
   int LepPDG;
 
   // Additional gas TPC variables for pion counting
-
+  int gastpc_pi_min_mult, gastpc_pi_pl_mult, nFSP;
+  int pdg[100];
+  double trkLen[100], partEvReco[100];
 
   // CAF variables for ND only
   int reco_numu, muon_contained, muon_tracker, reco_q;
@@ -110,7 +133,7 @@ void makeCov()
 
   // Gas TPC uncertainties
   TF1 * Pscale[nu];
-  double Ethreshold[nu];
+  double trkThreshold[nu];
 
   // FD
   TF1 * EtotThrowFD[nu];
@@ -162,8 +185,8 @@ void makeCov()
     EEMResFD[u] = rando->Gaus(0., 0.1);
     EneutResFD[u] = rando->Gaus(0., 0.3);
 
-    Ethreshold[u] = rando->Gaus( 5., 2.5 ); // 5 MeV threshold, 2.5 MeV width
-    if( Ethreshold[u] < 1. ) Ethreshold[u] = 1.; // truncate gaussian at 1 MeV threshold
+    trkThreshold[u] = rando->Gaus( 6., 3. ); // 5 MeV threshold, 2.5 MeV width
+    if( trkThreshold[u] < 1. ) trkThreshold[u] = 1.; // truncate gaussian at 1 MeV threshold
 
     // set the parameters
     EtotThrow[u]->SetParameter( 0, rando->Gaus(0., 0.02) );
@@ -257,11 +280,18 @@ void makeCov()
   // some validation plots
   TH2D * val_Ev[nu];
   TH2D * val_y[nu];
+
+  TH2D * val_npi_gas[nu];
+  TH2D * val_Ev_gas[nu];
   // add gas tpc validation plots
   for( int u = 0; u < nu; ++u ) {
     val_Ev[u] = new TH2D( Form("val_Ev_%03d",u), ";Reco E_{#nu};Shifted E_{#nu}", 100, 0., 10., 100, 0., 10. );
     val_y[u] = new TH2D( Form("val_y_%03d",u), ";Reco y;Shifted y", 100, 0., 1., 100, 0., 1. );
+
+    val_npi_gas[nu] = new TH2D( Form("val_gas_npi_%03d",u), ";CV N_{#pi};Shifted N_{#pi}", 3, 0., 3. );
+    val_Ev_gas[nu] = new TH2D( Form("val_gas_Ev_%03d",u), ";CV Ev;Shifted Ev", 100, 0., 10., 100, 0., 10. );
   }
+
     
   // Loop over ND events and fill the analysis bin histograms
   cafTree->SetBranchAddress( "vtx_x", &vtx_x );
@@ -377,11 +407,79 @@ void makeCov()
   }
 
   // Gas TPC loop
+  // Loop over ND events and fill the analysis bin histograms
+  gasCaf->SetBranchAddress( "vtx_x", &vtx_x );
+  gasCaf->SetBranchAddress( "vtx_y", &vtx_y );
+  gasCaf->SetBranchAddress( "vtx_z", &vtx_z );
+  gasCaf->SetBranchAddress( "Ev", &Ev );
+  gasCaf->SetBranchAddress( "Ev_reco", &Ev_reco );
+  gasCaf->SetBranchAddress( "LepPDG", &LepPDG );
+  gasCaf->SetBranchAddress( "reco_numu", &reco_numu );
+  gasCaf->SetBranchAddress( "reco_q", &reco_q );
+  gasCaf->SetBranchAddress( "gastpc_pi_min_mult", &gastpc_pi_min_mult );
+  gasCaf->SetBranchAddress( "gastpc_pi_pl_mult", &gastpc_pi_pl_mult );
+  gasCaf->SetBranchAddress( "nFSP", &nFSP );
+  gasCaf->SetBranchAddress( "pdg", pdg );
+  gasCaf->SetBranchAddress( "trkLen", trkLen );
+  gasCaf->SetBranchAddress( "partEvReco", partEvReco );
 
+  gasCaf->SetBranchStatus( "*", 0 );
+  gasCaf->SetBranchStatus( "vtx_x", 1 );
+  gasCaf->SetBranchStatus( "vtx_y", 1 );
+  gasCaf->SetBranchStatus( "vtx_z", 1 );
+  gasCaf->SetBranchStatus( "LepPDG", 1 );
+  gasCaf->SetBranchStatus( "reco_numu", 1 );
+  gasCaf->SetBranchStatus( "reco_q", 1 );
+  gasCaf->SetBranchStatus( "Ev", 1 );
+  gasCaf->SetBranchStatus( "Ev_reco", 1 );
+  gasCaf->SetBranchStatus( "gastpc_pi_min_mult", 1 );
+  gasCaf->SetBranchStatus( "gastpc_pi_pl_mult", 1 );
+  gasCaf->SetBranchStatus( "nFSP", 1 );
+  gasCaf->SetBranchStatus( "pdg", 1 );
+  gasCaf->SetBranchStatus( "trkLen", 1 );
+  gasCaf->SetBranchStatus( "partEvReco", 1 );
 
+  int N = gasCaf->GetEntries();
+  for( int ii = 0; ii < N; ++ii ) {
+    gasCaf->GetEntry(ii);
 
+    if( ii % 100000 == 0 ) printf( "Event %d of %d...\n", ii, N );
 
+    // FV cut
+    if( abs(vtx_x) > 200. ) continue; // endcap cut
+    double r = sqrt((vtx_z-952.5)*(vtx_z-952.5) + (vtx_y+72.5)*(vtx_y+72.5));
+    if( r > 200. ) continue; // circle cut
 
+    // true numu CC cut
+    if( LepPDG != 13 ) continue;
+    // reco numu CC cut
+    bool numuCC = (reco_numu && reco_q == -1);
+    if( !numuCC ) continue;
+
+    int cvpimult = gastpc_pi_pl_mult+gastpc_pi_min_mult;
+    if( cvpimult > 2 ) cvpimult = 2;
+    histCV_gas->Fill( gastpc_pi_pl_mult+gastpc_pi_min_mult, Ev_reco, 1. );
+    for( int u = 0; u < nu; ++u ) {
+
+      double shift_Ev_reco = 0.;
+      int pimult = 0;
+      for( int i = 0; i < nFSP; ++i ) {
+        double preco = getP( partEvReco[i], pdg[i] );
+        double pshiftfrac = Pscale[u]->Eval(preco);
+        double precoshift = preco*(1.+pshiftfrac);
+
+        if( trkLen[i] > trkThreshold[u] && (pdg[i]== 211 || pdg[i]==-211) ) pimult++;
+        if( trkLen[i] > trkThreshold[u] ) shift_Ev_reco += getE( precoshift, pdg[i] );
+      }
+
+      if( pimult > 2 ) pimult = 2;
+      hists_gas[u]->Fill( pimult, shift_Ev_reco );
+
+      val_npi_gas[u]->Fill( cvpimult, pimult );
+      val_Ev_gas[u]->Fill( Ev_reco, shift_Ev_reco );
+
+    }
+  }
 
   // FD numu
   cafFDmu->SetBranchAddress( "vtx_x", &vtx_x );
@@ -564,24 +662,6 @@ void makeCov()
     }
   }
 
-/*
-  TFile * valtf = new TFile( "validations.root", "RECREATE" );
-  for( int u = 0; u < nu; ++u ) {
-    val_Ev[u]->Write();
-    val_y[u]->Write();
-
-    hAccThrow[u]->Write();
-    muAccThrow[u]->Write();
-
-    EtotThrow[u]->Write();
-    EmuThrowLAr[u]->Write();
-    EmuThrowGAr[u]->Write();
-    EhadThrow[u]->Write();
-    EEMThrow[u]->Write();
-    EneutThrow[u]->Write();
-  }
-*/
-
   // Now determine the actual covariance
   int n_bins = n_Ebins * n_ybins;
 
@@ -635,10 +715,44 @@ void makeCov()
   TMatrixD covAccInv( TMatrixD::kInverted, covAcc );
   TMatrixD covEscaleInv( TMatrixD::kInverted, covEscale );
 
-  // Gas TPC matrix
+  // Gas TPC
+  int n_binsgas = n_Ebins * 3;
 
+  TMatrixD covGas( n_binsgas, n_binsgas );
+  for( int b0 = 0; b0 < n_binsgas; ++b0 ) {
+    for( int b1 = 0; b1 < n_binsgas; ++b1 ) {
+      covGas[b0][b1] = 0.;
+    }
+  }
 
+  for( int b0 = 0; b0 < n_binsgas; ++b0 ) {
+    int bx0 = (b0 % 3) + 1;
+    int by0 = (b0 / 3) + 1;
+    
+    double cv0 = histCV_gas->GetBinContent( bx0, by0 );
 
+    for( int b1 = 0; b1 < n_binsgas; ++b1 ) {
+      int bx1 = (b1 % 3) + 1;
+      int by1 = (b1 / 3) + 1;
+      double cv1 = histCV_gas->GetBinContent( bx1, by1 );
+
+      for( int u = 0; u < nu; ++u ) {
+        double u0 = hists_gas[u]->GetBinContent( bx0, by0 );
+        double u1 = hists_gas[u]->GetBinContent( bx1, by1 );
+
+        // fractional covariance, dividing out number of universes at the same time
+        if( cv0*cv1 > 1.E-12 ) {
+          covGas[b0][b1] += (u0-cv0)*(u1-cv1)/(cv0*cv1*nu);
+        }
+      }
+    }
+  }
+
+  // matrices are not positive definite due to numerical precision; make them positive definite
+  fix( covGas );
+
+  // test that they are invertible, this will barf if they are singular
+  TMatrixD covGasInv( TMatrixD::kInverted, covGas );
 
 
   // FD matrices
@@ -693,7 +807,7 @@ void makeCov()
   covEscale.Write("nd_frac_cov_EscaleOnly");
   covMu.Write("fd_numu_frac_cov");
   covE.Write("fd_nue_frac_cov");
-  // write gas matrix
+  covGas.Write("nd_frac_cov_gasTPC");
 
   TCanvas * c = new TCanvas();
   covAcc.Draw("colz");
@@ -739,6 +853,15 @@ void makeCov()
   covE_scale->Draw("colz");
   c->Print( "ND_syst_cov_projE_scale.png" );
 
+
+  TFile * val = new TFile( "out.root", "RECREATE" );
+  histCV_gas->Write();
+  for( int u = 0; u < nu; ++u ) {
+    hists_gas[u]->Write();
+    val_npi_gas[u]->Write();
+    val_Ev_gas[u]->Write();
+  }
+  covGas->Write( "gas_cov" );
 }
 
 
