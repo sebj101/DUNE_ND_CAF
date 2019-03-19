@@ -23,6 +23,7 @@ struct params {
   double michelEff;
   double CC_trk_length;
   double pileup_frac, pileup_max;
+  double gastpc_len, gastpc_B, gastpc_padPitch, gastpc_X0;
 };
 
 // Fill reco variables for muon reconstructed in magnetized tracker
@@ -181,7 +182,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   float hadP, hadN, hadPip, hadPim, hadPi0, hadOther;
   float p3lep[3], vtx[3], muonExitPt[3], muonExitMom[3];
   int fsPdg[100];
-  float fsPx[100], fsPy[100], fsPz[100], fsE[100], fsTrkLen[100];
+  float fsPx[100], fsPy[100], fsPz[100], fsE[100], fsTrkLen[100], fsTrkLenPerp[100];
   tree->SetBranchAddress( "ifileNo", &ifileNo );
   tree->SetBranchAddress( "ievt", &ievt );
   tree->SetBranchAddress( "lepPdg", &lepPdg );
@@ -207,16 +208,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
   tree->SetBranchAddress( "fsPz", fsPz );
   tree->SetBranchAddress( "fsE", fsE );
   tree->SetBranchAddress( "fsTrkLen", fsTrkLen );
-
-  // Gas TPC stuff
-  int gastpc_pi_pl_mult, gastpc_pi_min_mult, gastpc_reco_numu;
-  float gastpc_Ev_reco;
-  if( par.IsGasTPC ) {
-    tree->SetBranchAddress("gastpc_pi_pl_mult", &gastpc_pi_pl_mult);
-    tree->SetBranchAddress("gastpc_pi_min_mult", &gastpc_pi_min_mult);
-    tree->SetBranchAddress("nue_tot", &gastpc_Ev_reco);
-    tree->SetBranchAddress("reco_numu", &gastpc_reco_numu);
-  }
+  tree->SetBranchAddress( "fsTrkLenPerp", fsTrkLenPerp );
 
   // Get GHEP file for genie::EventRecord from other file
   int current_file = -1;
@@ -266,7 +258,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 
       if( par.grid ) ghep_file = new TFile( Form("genie.%d.root", ifileNo) );
       else if( !par.IsGasTPC ) ghep_file = new TFile( Form("%s/%02d/LAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
-      else ghep_file = new TFile( Form("%s/GAr.%s.%d.ghep.root", ghepdir.c_str(), mode.c_str(), ifileNo) );
+      else ghep_file = new TFile( Form("%s/%02d/GAr.%s.%d.ghep.root", ghepdir.c_str(), ifileNo/1000, mode.c_str(), ifileNo) );
       
       gtree = (TTree*) ghep_file->Get( "gtree" );
       caf.pot += gtree->GetWeight();
@@ -495,12 +487,59 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
       caf.Ev_reco += caf.pileup_energy;
     } else {
-      // gas TPC
-      if( gastpc_reco_numu == 1 ) {
-        recoMuonTracker( caf, par );
-        caf.gastpc_pi_pl_mult = gastpc_pi_pl_mult;
-        caf.gastpc_pi_min_mult = gastpc_pi_min_mult;
-        caf.Ev_reco = gastpc_Ev_reco*0.001;
+      // gas TPC: FS particle loop look for long enough tracks and smear momenta
+      caf.Ev_reco = 0.;
+      caf.nFSP = nFS;
+      for( int i = 0; i < nFS; ++i ) {
+        double ptrue = 0.001*sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
+        double mass = 0.001*sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
+        caf.pdg[i] = fsPdg[i];
+        caf.ptrue[i] = ptrue;
+        caf.trkLen[i] = fsTrkLen[i];
+        caf.trkLenPerp[i] = fsTrkLenPerp[i];
+        // track length cut 6cm according to T Junk
+        if( fsTrkLen[i] > 0. && fsPdg[i] != 2112 ) { // basically select charged particles; somehow neutrons ocasionally get nonzero track length
+          double pT = 0.001*sqrt(fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]); // transverse to B field, in GeV
+          double nHits = fsTrkLen[i] / par.gastpc_padPitch; // doesn't matter if not integer as only used in eq
+          // Gluckstern formula, sigmapT/pT, with sigmaX and L in meters
+          double fracSig_meas = sqrt(720./(nHits+4)) * (0.01*par.gastpc_padPitch/sqrt(12.)) * pT / (0.3 * par.gastpc_B * 0.0001 * fsTrkLenPerp[i]*fsTrkLenPerp[i]);
+          // multiple scattering term
+          double fracSig_MCS = 0.052 / (par.gastpc_B * sqrt(par.gastpc_X0*fsTrkLenPerp[i]*0.0001));
+
+          double sigmaP = ptrue * sqrt( fracSig_meas*fracSig_meas + fracSig_MCS*fracSig_MCS );
+          double preco = rando->Gaus( ptrue, sigmaP );
+          double ereco = sqrt( preco*preco + mass*mass ) - mass; // kinetic energy
+          if( abs(fsPdg[i]) == 211 ) ereco += mass; // add pion mass
+          else if( fsPdg[i] == 2212 && preco > 1.5 ) ereco += 0.1395; // mistake pion mass for high-energy proton
+          caf.partEvReco[i] = ereco;
+
+          // threshold cut
+          if( fsTrkLen[i] > par.gastpc_len ) {
+            caf.Ev_reco += ereco;
+            if( fsPdg[i] == 211 || (fsPdg[i] == 2212 && preco > 1.5) ) caf.gastpc_pi_pl_mult++;
+            else if( fsPdg[i] == -211 ) caf.gastpc_pi_min_mult++;
+          }
+
+          if( (fsPdg[i] == 13 || fsPdg[i] == -13) && fsTrkLen[i] > 100. ) { // muon, don't really care about nu_e CC for now
+            caf.Elep_reco = sqrt(preco*preco + mass*mass);
+            // angle reconstruction
+            double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+            double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+            double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+            if( evalTsmear < 0. ) evalTsmear = 0.;
+            double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+            double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+            caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+            // assume perfect charge reconstruction
+            caf.reco_q = (fsPdg[i] > 0 ? -1 : 1);
+            caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
+            caf.muon_tracker = 1;
+          }
+        } else if( fsPdg[i] == 111 || fsPdg[i] == 22 ) {
+          double ereco = 0.001 * rando->Gaus( fsE[i], 0.1*fsE[i] );
+          caf.partEvReco[i] = ereco;
+          caf.Ev_reco += ereco;
+        }
       }
     }
 
@@ -550,6 +589,10 @@ int main( int argc, char const *argv[] )
   par.CC_trk_length = 100.; // minimum track length for CC in cm
   par.pileup_frac = 0.1; // fraction of events with non-zero pile-up
   par.pileup_max = 0.5; // GeV
+  par.gastpc_len = 6.; // track length cut in cm
+  par.gastpc_B = 0.4; // B field strength in Tesla
+  par.gastpc_padPitch = 0.1; // 1 mm. Actual pad pitch varies, which is going to be impossible to implement
+  par.gastpc_X0 = 1300.; // cm = 13m radiation length
 
   int i = 0;
   while( i < argc ) {
