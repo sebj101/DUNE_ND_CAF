@@ -87,6 +87,9 @@ CAF::CAF( std::string filename, bool isGas )
   if( isGas ) {
     cafMVA->Branch( "gastpc_pi_pl_mult", &gastpc_pi_pl_mult, "gastpc_pi_pl_mult/I" );
     cafMVA->Branch( "gastpc_pi_min_mult", &gastpc_pi_min_mult, "gastpc_pi_min_mult/I" ); 
+    cafMVA->Branch( "gastpc_pi_0_mult", &gastpc_pi_0_mult, "gastpc_pi_0_mult/I" );
+    cafMVA->Branch( "gastpc_lead_pi_E", &gastpc_lead_pi_E, "gastpc_lead_pi_E/D" );
+    cafMVA->Branch( "gastpc_sublead_pi_E", &gastpc_sublead_pi_E, "gastpc_sublead_pi_E/D" );
   }
 
   genie->Branch( "genie_record", &mcrec );
@@ -158,6 +161,7 @@ void CAF::setToBS()
 
   gastpc_pi_pl_mult = 0;
   gastpc_pi_min_mult = 0;
+  gastpc_pi_0_mult = 0;
 
   for( int i = 0; i < 100; ++i ) {
     nwgt[i] = 0;

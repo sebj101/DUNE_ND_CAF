@@ -8,6 +8,7 @@
 #include "EVGCore/EventRecord.h"
 #include "nusystematics/artless/response_helper.hh"
 #include <stdio.h>
+#include <vector>
 
 TRandom3 * rando;
 const double mmu = 0.1056583745;
@@ -483,13 +484,15 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       caf.eRecoPi0 = hadPi0*0.001;
       caf.eRecoOther = hadOther*0.001;
 
-      caf.pileup_energy = 0.;
+      caf.pileup_energy = 0;
       if( rando->Rndm() < par.pileup_frac ) caf.pileup_energy = rando->Rndm() * par.pileup_max;
       caf.Ev_reco += caf.pileup_energy;
     } else {
+      std::vector<double> piRecoE;
       // gas TPC: FS particle loop look for long enough tracks and smear momenta
       caf.Ev_reco = 0.;
       caf.nFSP = nFS;
+
       for( int i = 0; i < nFS; ++i ) {
         double ptrue = 0.001*sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
         double mass = 0.001*sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
@@ -516,11 +519,17 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
           // threshold cut
           if( fsTrkLen[i] > par.gastpc_len ) {
             caf.Ev_reco += ereco;
-            if( fsPdg[i] == 211 || (fsPdg[i] == 2212 && preco > 1.5) ) caf.gastpc_pi_pl_mult++;
-            else if( fsPdg[i] == -211 ) caf.gastpc_pi_min_mult++;
+            if( fsPdg[i] == 211 || (fsPdg[i] == 2212 && preco > 1.5) ) {
+	      caf.gastpc_pi_pl_mult++;
+	      piRecoE.push_back(ereco);
+	    }
+            else if( fsPdg[i] == -211 ) {
+	      caf.gastpc_pi_min_mult++;
+	      piRecoE.push_back(ereco);
+	    }
           }
 
-          if( (fsPdg[i] == 13 || fsPdg[i] == -13) && fsTrkLen[i] > 100. ) { // muon, don't really care about nu_e CC for now
+          if( abs(fsPdg[i]) == 13 && fsTrkLen[i] > 100. ) { // muon, don't really care about nu_e CC for now
             caf.Elep_reco = sqrt(preco*preco + mass*mass);
             // angle reconstruction
             double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
@@ -535,12 +544,43 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
             caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
             caf.muon_tracker = 1;
           }
-        } else if( fsPdg[i] == 111 || fsPdg[i] == 22 ) {
-          double ereco = 0.001 * rando->Gaus( fsE[i], 0.1*fsE[i] );
-          caf.partEvReco[i] = ereco;
-          caf.Ev_reco += ereco;
         }
+	else if( fsPdg[i] == 111 ){
+	  // Decay pi0
+	  TVector3 g1, g2;
+          TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
+          decayPi0( pi0, g1, g2 );
+          double g1conv = rando->Exp( 14. ); // conversion distance
+          bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
+	  // Need to check if two photons are reco'd as separate (to check if pi0 is reco'd)
+	  double ereco = 0.001 * (rando->Gaus(g1.Mag(), 0.1*g1.Mag()) + rando->Gaus(g2.Mag(), 0.1*g2.Mag()));
+	  caf.Ev_reco += ereco;
+	  // Photons are not overlaid on one another and low energy photon is not too low
+	  if( !(g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01)) ) {
+	    caf.gastpc_pi_0_mult++;
+	    piRecoE.push_back(ereco);
+	  }
+        }
+	else if (fsPdg[i] == 22 ) {
+          double ereco = 0.001 * rando->Gaus( fsE[i], 0.1*fsE[i] );
+          caf.Ev_reco += ereco;
+	}
       }
+
+      // Now loop over reconstructed pion energies and find the leading and sub-leading ones
+      double leadpi    = 0.;
+      double subleadpi = 0.;
+      for (unsigned int pi=0; pi<piRecoE.size(); pi++) {
+	if (piRecoE[pi] > leadpi) {
+	  subleadpi = leadpi;
+	  leadpi = piRecoE[pi];
+	}
+	else if (piRecoE[pi] > subleadpi && piRecoE[pi] < leadpi) {
+	  subleadpi = piRecoE[pi];
+	}
+      }
+      caf.gastpc_lead_pi_E = leadpi;
+      caf.gastpc_sublead_pi_E = subleadpi;
     }
 
     //printf( "Ev reco %f pion mult %d %d Elep reco %f reco numu %d reco q %d Ehad_veto %f muon_tracker %d\n", caf.Ev_reco, caf.gastpc_pi_pl_mult, caf.gastpc_pi_min_mult, caf.Elep_reco, caf.reco_numu, caf.reco_q, caf.Ehad_veto, caf.muon_tracker );
