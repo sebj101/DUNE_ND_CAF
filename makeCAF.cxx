@@ -12,6 +12,7 @@
 
 TRandom3 * rando;
 const double mmu = 0.1056583745;
+const double e   = 2.7182818285;
 TF1 * tsmear; // angular resolution function
 
 // params will be extracted from command line, and passed to the reconstruction
@@ -489,10 +490,17 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       caf.Ev_reco += caf.pileup_energy;
     } else {
       std::vector<double> piRecoE;
+      TFile *fMip = new TFile("p_range.root","read");
+      TGraph *grMip = (TGraph*)fMip->Get("non_int_prob");
+      TSpline3 *sp = new TSpline3("sp", grMip);
+      fMip->Close();
+      delete fMip;
+      delete grMip;
       // gas TPC: FS particle loop look for long enough tracks and smear momenta
       caf.Ev_reco = 0.;
       caf.nFSP = nFS;
-
+      // Need to determine which of the tracks is reco'd as the muon
+      double highestMipPdg, highestMipMom = 0.;
       for( int i = 0; i < nFS; ++i ) {
         double ptrue = 0.001*sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
         double mass = 0.001*sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
@@ -500,58 +508,129 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         caf.ptrue[i] = ptrue;
         caf.trkLen[i] = fsTrkLen[i];
         caf.trkLenPerp[i] = fsTrkLenPerp[i];
+	double pT = 0.001*sqrt(fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]); // transverse to B field, in GeV
         // track length cut 6cm according to T Junk
-        if( fsTrkLen[i] > 0. && fsPdg[i] != 2112 ) { // basically select charged particles; somehow neutrons ocasionally get nonzero track length
-          double pT = 0.001*sqrt(fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]); // transverse to B field, in GeV
-          double nHits = fsTrkLen[i] / par.gastpc_padPitch; // doesn't matter if not integer as only used in eq
-          // Gluckstern formula, sigmapT/pT, with sigmaX and L in meters
-          double fracSig_meas = sqrt(720./(nHits+4)) * (0.01*par.gastpc_padPitch/sqrt(12.)) * pT / (0.3 * par.gastpc_B * 0.0001 * fsTrkLenPerp[i]*fsTrkLenPerp[i]);
-          // multiple scattering term
-          double fracSig_MCS = 0.052 / (par.gastpc_B * sqrt(par.gastpc_X0*fsTrkLenPerp[i]*0.0001));
+        if( fsTrkLen[i] > 0. && fsPdg[i] != 2112 /* && abs(fsPdg[i]) != 211 && abs(fsPdg[i]) != 13*/) {
+	  // basically select charged particles; somehow neutrons ocasionally get nonzero track length
+	  double nHits = fsTrkLen[i] / par.gastpc_padPitch; // doesn't matter if not integer as only used in eq
+	  // Gluckstern formula, sigmapT/pT, with sigmaX and L in meters
+	  double fracSig_meas = sqrt(720./(nHits+4)) * (0.01*par.gastpc_padPitch/sqrt(12.)) * pT / (0.3 * par.gastpc_B * 0.0001 * fsTrkLenPerp[i]*fsTrkLenPerp[i]);
+	  // multiple scattering term
+	  double fracSig_MCS = 0.052 / (par.gastpc_B * sqrt(par.gastpc_X0*fsTrkLenPerp[i]*0.0001));
 
-          double sigmaP = ptrue * sqrt( fracSig_meas*fracSig_meas + fracSig_MCS*fracSig_MCS );
-          double preco = rando->Gaus( ptrue, sigmaP );
-          double ereco = sqrt( preco*preco + mass*mass ) - mass; // kinetic energy
-          if( abs(fsPdg[i]) == 211 ) ereco += mass; // add pion mass
-          else if( fsPdg[i] == 2212 && preco > 1.5 ) ereco += 0.1395; // mistake pion mass for high-energy proton
-          caf.partEvReco[i] = ereco;
-
-          // threshold cut
-          if( fsTrkLen[i] > par.gastpc_len ) {
-            caf.Ev_reco += ereco;
-            if( fsPdg[i] == 211 || (fsPdg[i] == 2212 && preco > 1.5) ) {
+	  double sigmaP = ptrue * sqrt( fracSig_meas*fracSig_meas + fracSig_MCS*fracSig_MCS );
+	  double preco = rando->Gaus( ptrue, sigmaP );
+	  double ereco = sqrt( preco*preco + mass*mass ) - mass; // kinetic energy
+	  if( fsPdg[i] == 2212 && preco > 1.5 ) ereco += 0.1395; // mistake pion mass for high-energy proton
+	  caf.partEvReco[i] = ereco;
+	  if(fsTrkLen[i] > par.gastpc_len && abs(fsPdg[i]) != 211 && abs(fsPdg[i]) != 13) {
+	    caf.Ev_reco += ereco;
+	    if (fsPdg[i] == 2212 && preco > 1.5) {
 	      caf.gastpc_pi_pl_mult++;
 	      piRecoE.push_back(ereco);
 	    }
-            else if( fsPdg[i] == -211 ) {
-	      caf.gastpc_pi_min_mult++;
-	      piRecoE.push_back(ereco);
+	  }
+	  else if (fsTrkLen[i] > par.gastpc_len && (abs(fsPdg[i]) == 211 || abs(fsPdg[i]) == 13)) {
+	    // Is a MIP
+	    caf.Ev_reco += (ereco+mass);
+	    if (abs(fsPdg[i])==13) {
+	      // If highest momentum MIP is muon then we're all good
+	      if (highestMipMom > 0.) {
+		piRecoE.push_back(sqrt(highestMipMom*highestMipMom+0.1395*0.1395));
+		highestMipPdg > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+	      }
+	      highestMipMom = preco;
+	      highestMipPdg = fsPdg[i];
+	      caf.Elep_reco = sqrt(preco*preco + mass*mass);
+	      // angle reconstruction
+	      double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
+	      double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
+	      double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+	      if( evalTsmear < 0. ) evalTsmear = 0.;
+	      double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+	      double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+	      caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+	      if (fsTrkLen[i] > 100.) {
+		// assume perfect charge reconstruction
+		caf.reco_q = (fsPdg[i] > 0 ? -1 : 1);
+		caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
+		caf.muon_tracker = 1;
+	      }
 	    }
-          }
-
-          if( abs(fsPdg[i]) == 13 && fsTrkLen[i] > 100. ) { // muon, don't really care about nu_e CC for now
-            caf.Elep_reco = sqrt(preco*preco + mass*mass);
-            // angle reconstruction
-            double true_tx = 1000.*atan(caf.LepMomX / caf.LepMomZ);
-            double true_ty = 1000.*atan(caf.LepMomY / caf.LepMomZ);
-            double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
-            if( evalTsmear < 0. ) evalTsmear = 0.;
-            double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
-            double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-            caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
-            // assume perfect charge reconstruction
-            caf.reco_q = (fsPdg[i] > 0 ? -1 : 1);
-            caf.reco_numu = 1; caf.reco_nue = 0; caf.reco_nc = 0;
-            caf.muon_tracker = 1;
-          }
-        }
+	    else if (abs(fsPdg[i])==211 && preco < 0.4) {
+	      // We have good PID here
+	      piRecoE.push_back(ereco+0.1395);
+	      fsPdg[i] > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+	    }
+	    else if (abs(fsPdg[i])==211 && preco > 0.4 && preco < 1.) {
+	      // Use a TSpline3 to check probability of this pion interacting in ECAL
+	      if (preco > highestMipMom && rando->Rndm() < sp->Eval(ptrue*1000.)) {
+		// We now think this pion is the lepton
+		if (highestMipMom > 0.) {
+		  piRecoE.push_back(sqrt(highestMipMom*highestMipMom+0.1395*0.1395));
+		  (highestMipPdg==-13 || highestMipPdg==211) ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+		}
+		highestMipMom = preco;
+		highestMipPdg = fsPdg[i];
+		caf.Elep_reco = sqrt(preco*preco + mmu*mmu);
+		// angle reconstruction
+		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
+		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
+		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		if( evalTsmear < 0. ) evalTsmear = 0.;
+		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+		caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+		if (fsTrkLen[i] > 100.) {
+		  // assume perfect charge reconstruction
+		  caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
+		  caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
+		  caf.muon_tracker = 1; 
+		}
+	      }
+	      else {
+		piRecoE.push_back(ereco+0.1395);
+		fsPdg[i] > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+	      }
+	    } // Longest track is a pion
+	    else if (abs(fsPdg[i])==211 && preco > 1.) {
+	      if (preco > highestMipMom && rando->Rndm() < 1/(e*e*e)) {
+		if (highestMipMom > 0.) {
+		  piRecoE.push_back(sqrt(highestMipMom*highestMipMom+0.1395*0.1395));
+		  (highestMipPdg==-13 || highestMipPdg==211) ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+		}
+		highestMipMom = preco;
+		highestMipPdg = fsPdg[i];
+		caf.Elep_reco = sqrt(preco*preco + mmu*mmu);
+		// angle reconstruction
+		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
+		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
+		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		if( evalTsmear < 0. ) evalTsmear = 0.;
+		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+		caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+		if (fsTrkLen[i] > 100.) {
+		  // assume perfect charge reconstruction
+		  caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
+		  caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
+		  caf.muon_tracker = 1; 
+		}
+	      }
+	      else {
+		piRecoE.push_back(ereco+0.1395);
+		fsPdg[i] > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+	      }
+	    }
+	  } // Is a MIP
+	}
 	else if( fsPdg[i] == 111 ){
 	  // Decay pi0
 	  TVector3 g1, g2;
-          TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
-          decayPi0( pi0, g1, g2 );
-          double g1conv = rando->Exp( 14. ); // conversion distance
-          bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
+	  TLorentzVector pi0( fsPx[i], fsPy[i], fsPz[i], fsE[i] );
+	  decayPi0( pi0, g1, g2 );
+	  double g1conv = rando->Exp( 14. ); // conversion distance
+	  bool compton = (rando->Rndm() < 0.15); // dE/dX misID probability for photon
 	  // Need to check if two photons are reco'd as separate (to check if pi0 is reco'd)
 	  double ereco = 0.001 * (rando->Gaus(g1.Mag(), 0.1*g1.Mag()) + rando->Gaus(g2.Mag(), 0.1*g2.Mag()));
 	  caf.Ev_reco += ereco;
@@ -560,13 +639,13 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	    caf.gastpc_pi_0_mult++;
 	    piRecoE.push_back(ereco);
 	  }
-        }
+	}
 	else if (fsPdg[i] == 22 ) {
-          double ereco = 0.001 * rando->Gaus( fsE[i], 0.1*fsE[i] );
-          caf.Ev_reco += ereco;
+	  double ereco = 0.001 * rando->Gaus( fsE[i], 0.1*fsE[i] );
+	  caf.Ev_reco += ereco;
 	}
       }
-
+         
       // Now loop over reconstructed pion energies and find the leading and sub-leading ones
       double leadpi    = 0.;
       double subleadpi = 0.;
