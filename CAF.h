@@ -44,7 +44,13 @@ public:
 
   // Gas TPC variables
   int gastpc_pi_min_mult, gastpc_pi_pl_mult, gastpc_pi_0_mult;
+  int gastpc_pro_mult;
+  int gastpc_other_had_mult; // Hadrons that can't be identified
   double gastpc_lead_pi_E, gastpc_sublead_pi_E;
+  double gastpc_ProMomX, gastpc_ProMomY, gastpc_ProMomZ;
+  double gastpc_RecoProMomX, gastpc_RecoProMomY, gastpc_RecoProMomZ;
+  double gastpc_RecoLepMomX, gastpc_RecoLepMomY, gastpc_RecoLepMomZ;
+  int gastpc_nRecoFS;
   int nFSP;
   int pdg[100];
   int pdgReco[100];

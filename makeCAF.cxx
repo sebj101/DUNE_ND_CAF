@@ -14,6 +14,7 @@ TRandom3 * rando;
 const double mmu = 0.1056583745;
 const double e   = 2.7182818285;
 TF1 * tsmear; // angular resolution function
+TSpline3 * sp; // pion interaction in ECAL probability
 
 // params will be extracted from command line, and passed to the reconstruction
 struct params {
@@ -490,17 +491,14 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       caf.Ev_reco += caf.pileup_energy;
     } else {
       std::vector<double> piRecoE;
-      TFile *fMip = new TFile("p_range.root","read");
-      TGraph *grMip = (TGraph*)fMip->Get("non_int_prob");
-      TSpline3 *sp = new TSpline3("sp", grMip);
-      fMip->Close();
-      delete fMip;
-      delete grMip;
       // gas TPC: FS particle loop look for long enough tracks and smear momenta
       caf.Ev_reco = 0.;
       caf.nFSP = nFS;
       // Need to determine which of the tracks is reco'd as the muon
       double highestMipPdg, highestMipMom = 0.;
+
+      int nHadNoP = caf.nipip + caf.nipim + caf.nipi0 + caf.nikm + caf.nikp + caf.nik0 + caf.nN + caf.niother + caf.nNucleus;
+
       for( int i = 0; i < nFS; ++i ) {
         double ptrue = 0.001*sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
         double mass = 0.001*sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
@@ -509,8 +507,17 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         caf.trkLen[i] = fsTrkLen[i];
         caf.trkLenPerp[i] = fsTrkLenPerp[i];
 	double pT = 0.001*sqrt(fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]); // transverse to B field, in GeV
+
+	// For Cheryl's QE study
+	if (fsPdg[i] == 2212 && nHadNoP == 0 && abs(caf.LepPDG)==13) {
+	  // We just want events with a muon and a proton
+	  caf.gastpc_ProMomX = fsPx[i]*0.001;
+	  caf.gastpc_ProMomY = fsPy[i]*0.001;
+	  caf.gastpc_ProMomZ = fsPz[i]*0.001;
+	}
+
         // track length cut 6cm according to T Junk
-        if( fsTrkLen[i] > 0. && fsPdg[i] != 2112 /* && abs(fsPdg[i]) != 211 && abs(fsPdg[i]) != 13*/) {
+        if( fsTrkLen[i] > 0. && fsPdg[i] != 2112) {
 	  // basically select charged particles; somehow neutrons ocasionally get nonzero track length
 	  double nHits = fsTrkLen[i] / par.gastpc_padPitch; // doesn't matter if not integer as only used in eq
 	  // Gluckstern formula, sigmapT/pT, with sigmaX and L in meters
@@ -521,16 +528,48 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	  double sigmaP = ptrue * sqrt( fracSig_meas*fracSig_meas + fracSig_MCS*fracSig_MCS );
 	  double preco = rando->Gaus( ptrue, sigmaP );
 	  double ereco = sqrt( preco*preco + mass*mass ) - mass; // kinetic energy
-	  if( fsPdg[i] == 2212 && preco > 1.5 ) ereco += 0.1395; // mistake pion mass for high-energy proton
-	  caf.partEvReco[i] = ereco;
+
 	  if(fsTrkLen[i] > par.gastpc_len && abs(fsPdg[i]) != 211 && abs(fsPdg[i]) != 13) {
-	    caf.Ev_reco += ereco;
+	    caf.gastpc_nRecoFS++;
 	    if (fsPdg[i] == 2212 && preco > 1.5) {
-	      caf.gastpc_pi_pl_mult++;
-	      piRecoE.push_back(ereco);
+	      if (rando->Rndm() > 0.5) {
+		ereco += 0.1395; // mistake pion mass for high-energy proton
+		caf.gastpc_pi_pl_mult++;
+		piRecoE.push_back(ereco);
+	      }
+	      else { // correct ID
+		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
+		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
+		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		if( evalTsmear < 0. ) evalTsmear = 0.;
+		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+		caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+		caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
+		caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
+		caf.gastpc_pro_mult++;
+	      }
 	    }
+	    else if (fsPdg[i] == 2212 && preco < 1.5) {
+	      double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
+	      double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
+	      double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+	      if( evalTsmear < 0. ) evalTsmear = 0.;
+	      double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+	      double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+	      caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+	      caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
+	      caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
+	      caf.gastpc_pro_mult++;
+	    }
+	    else { // Unidentified hadron
+	      caf.gastpc_other_had_mult++;
+	    }
+	    caf.partEvReco[i] = ereco;
+	    caf.Ev_reco += ereco;
 	  }
 	  else if (fsTrkLen[i] > par.gastpc_len && (abs(fsPdg[i]) == 211 || abs(fsPdg[i]) == 13)) {
+	    caf.gastpc_nRecoFS++;
 	    // Is a MIP
 	    caf.Ev_reco += (ereco+mass);
 	    if (abs(fsPdg[i])==13) {
@@ -550,6 +589,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	      double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
 	      double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
 	      caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+	      caf.gastpc_RecoLepMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+	      caf.gastpc_RecoLepMomX = caf.gastpc_RecoLepMomZ * tan(reco_tx*0.001); 
+	      caf.gastpc_RecoLepMomY = caf.gastpc_RecoLepMomZ * tan(reco_ty*0.001);
 	      if (fsTrkLen[i] > 100.) {
 		// assume perfect charge reconstruction
 		caf.reco_q = (fsPdg[i] > 0 ? -1 : 1);
@@ -581,6 +623,9 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
 		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
 		caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+		caf.gastpc_RecoLepMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+		caf.gastpc_RecoLepMomX = caf.gastpc_RecoLepMomZ * tan(reco_tx*0.001); 
+		caf.gastpc_RecoLepMomY = caf.gastpc_RecoLepMomZ * tan(reco_ty*0.001);
 		if (fsTrkLen[i] > 100.) {
 		  // assume perfect charge reconstruction
 		  caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
@@ -594,32 +639,51 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	      }
 	    } // Longest track is a pion
 	    else if (abs(fsPdg[i])==211 && preco > 1.) {
-	      if (preco > highestMipMom && rando->Rndm() < 1/(e*e*e)) {
-		if (highestMipMom > 0.) {
-		  piRecoE.push_back(sqrt(highestMipMom*highestMipMom+0.1395*0.1395));
-		  (highestMipPdg==-13 || highestMipPdg==211) ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
-		}
-		highestMipMom = preco;
-		highestMipPdg = fsPdg[i];
-		caf.Elep_reco = sqrt(preco*preco + mmu*mmu);
-		// angle reconstruction
+	      // If very high energy, there is a chance to reco as a proton
+	      if (preco > 1.5 && rando->Rndm() > 0.5) {
 		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
 		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
 		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
 		if( evalTsmear < 0. ) evalTsmear = 0.;
 		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
 		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-		caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
-		if (fsTrkLen[i] > 100.) {
-		  // assume perfect charge reconstruction
-		  caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
-		  caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
-		  caf.muon_tracker = 1; 
-		}
-	      }
+		caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+		caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
+		caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
+		caf.Ev_reco -= 0.1395; // Remove pion mass
+		caf.gastpc_pro_mult++;
+	      } // pion mis-ID'd as a proton
 	      else {
-		piRecoE.push_back(ereco+0.1395);
-		fsPdg[i] > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+		if (preco > highestMipMom && rando->Rndm() < 1/(e*e*e)) {
+		  if (highestMipMom > 0.) {
+		    piRecoE.push_back(sqrt(highestMipMom*highestMipMom+0.1395*0.1395));
+		    (highestMipPdg==-13 || highestMipPdg==211) ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+		  }
+		  highestMipMom = preco;
+		  highestMipPdg = fsPdg[i];
+		  caf.Elep_reco = sqrt(preco*preco + mmu*mmu);
+		  // angle reconstruction
+		  double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
+		  double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
+		  double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		  if( evalTsmear < 0. ) evalTsmear = 0.;
+		  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
+		  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
+		  caf.theta_reco = 0.001*sqrt( reco_tx*reco_tx + reco_ty*reco_ty );
+		  caf.gastpc_RecoLepMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
+		  caf.gastpc_RecoLepMomX = caf.gastpc_RecoLepMomZ * tan(reco_tx*0.001); 
+		  caf.gastpc_RecoLepMomY = caf.gastpc_RecoLepMomZ * tan(reco_ty*0.001);
+		  if (fsTrkLen[i] > 100.) {
+		    // assume perfect charge reconstruction
+		    caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
+		    caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
+		    caf.muon_tracker = 1; 
+		  }
+		}
+		else {
+		  piRecoE.push_back(ereco+0.1395);
+		  fsPdg[i] > 0 ? caf.gastpc_pi_pl_mult++ : caf.gastpc_pi_min_mult++;
+		}
 	      }
 	    }
 	  } // Is a MIP
@@ -638,6 +702,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	  if( !(g1conv < 2.0 && compton && (g2.Mag() < 50. || g1.Angle(g2) < 0.01)) ) {
 	    caf.gastpc_pi_0_mult++;
 	    piRecoE.push_back(ereco);
+	    caf.gastpc_nRecoFS++;
 	  }
 	}
 	else if (fsPdg[i] == 22 ) {
@@ -769,6 +834,11 @@ int main( int argc, char const *argv[] )
 
   // LAr driven smearing, maybe we want to change for gas?
   tsmear = new TF1( "tsmear", "0.162 + 3.407*pow(x,-1.) + 3.129*pow(x,-0.5)", 0., 999.9 );
+  // For checking pion ECAL interaction
+  TFile *fMip = new TFile("p_range.root","read");
+  TGraph *grMip = (TGraph*)fMip->Get("non_int_prob");
+  sp = new TSpline3("sp", grMip);
+  fMip->Close();
 
   TFile * tf = new TFile( edepfile.c_str() );
   TTree * tree = (TTree*) tf->Get( "tree" );
