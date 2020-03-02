@@ -47,8 +47,6 @@ public:
   int gastpc_pro_mult;
   int gastpc_other_had_mult; // Hadrons that can't be identified
   double gastpc_lead_pi_E, gastpc_sublead_pi_E;
-  double gastpc_ProMomX, gastpc_ProMomY, gastpc_ProMomZ;
-  double gastpc_RecoProMomX, gastpc_RecoProMomY, gastpc_RecoProMomZ;
   double gastpc_RecoLepMomX, gastpc_RecoLepMomY, gastpc_RecoLepMomZ;
   int gastpc_nRecoFS;
   int nFSP;

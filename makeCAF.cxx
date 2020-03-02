@@ -497,8 +497,6 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
       // Need to determine which of the tracks is reco'd as the muon
       double highestMipPdg, highestMipMom = 0.;
 
-      int nHadNoP = caf.nipip + caf.nipim + caf.nipi0 + caf.nikm + caf.nikp + caf.nik0 + caf.nN + caf.niother + caf.nNucleus;
-
       for( int i = 0; i < nFS; ++i ) {
         double ptrue = 0.001*sqrt(fsPx[i]*fsPx[i] + fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]);
         double mass = 0.001*sqrt(fsE[i]*fsE[i] - fsPx[i]*fsPx[i] - fsPy[i]*fsPy[i] - fsPz[i]*fsPz[i]);
@@ -507,14 +505,6 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
         caf.trkLen[i] = fsTrkLen[i];
         caf.trkLenPerp[i] = fsTrkLenPerp[i];
 	double pT = 0.001*sqrt(fsPy[i]*fsPy[i] + fsPz[i]*fsPz[i]); // transverse to B field, in GeV
-
-	// For Cheryl's QE study
-	if (fsPdg[i] == 2212 && nHadNoP == 0 && abs(caf.LepPDG)==13) {
-	  // We just want events with a muon and a proton
-	  caf.gastpc_ProMomX = fsPx[i]*0.001;
-	  caf.gastpc_ProMomY = fsPy[i]*0.001;
-	  caf.gastpc_ProMomZ = fsPz[i]*0.001;
-	}
 
         // track length cut 6cm according to T Junk
         if( fsTrkLen[i] > 0. && fsPdg[i] != 2112) {
@@ -532,34 +522,25 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	  if(fsTrkLen[i] > par.gastpc_len && abs(fsPdg[i]) != 211 && abs(fsPdg[i]) != 13) {
 	    caf.gastpc_nRecoFS++;
 	    if (fsPdg[i] == 2212 && preco > 1.5) {
-	      if (rando->Rndm() > 0.5) {
-		ereco += 0.1395; // mistake pion mass for high-energy proton
-		caf.gastpc_pi_pl_mult++;
+	      // Energy reconstruction for particles in the ECAL
+	      double keTrue = sqrt(ptrue*ptrue + mass*mass) - mass;
+	      double keCalReco = keTrue * (1.+rando->Gaus(0., 0.2)+rando->Gaus(0., 0.3)/sqrt(keTrue));
+	      // Check if energy from momentum reco is closer to proton or pion expectation
+	      double eIfPi  = sqrt(preco*preco + 0.1395*0.1395) - 0.1395;
+	      double eIfPro = sqrt(preco*preco + 0.9383*0.9383) - 0.9383;
+	      // Is reco'd as a pion
+	      if (abs(eIfPi-keCalReco) < abs(eIfPro-keCalReco)) {
+		// Add in pion mass
+		ereco += 0.1395;
 		piRecoE.push_back(ereco);
+		caf.gastpc_pi_pl_mult++;
 	      }
-	      else { // correct ID
-		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
-		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
-		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
-		if( evalTsmear < 0. ) evalTsmear = 0.;
-		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
-		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-		caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
-		caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
-		caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
+	      else {
 		caf.gastpc_pro_mult++;
 	      }
 	    }
 	    else if (fsPdg[i] == 2212 && preco < 1.5) {
-	      double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
-	      double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
-	      double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
-	      if( evalTsmear < 0. ) evalTsmear = 0.;
-	      double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
-	      double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-	      caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
-	      caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
-	      caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
+	      // For lower momentum protons, we can get PID from de/dx
 	      caf.gastpc_pro_mult++;
 	    }
 	    else { // Unidentified hadron
@@ -618,7 +599,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 		// angle reconstruction
 		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
 		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
-		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		double evalTsmear = tsmear->Eval(ereco);
 		if( evalTsmear < 0. ) evalTsmear = 0.;
 		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
 		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
@@ -639,20 +620,24 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	      }
 	    } // Longest track is a pion
 	    else if (abs(fsPdg[i])==211 && preco > 1.) {
-	      // If very high energy, there is a chance to reco as a proton
-	      if (preco > 1.5 && rando->Rndm() > 0.5) {
-		double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
-		double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
-		double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
-		if( evalTsmear < 0. ) evalTsmear = 0.;
-		double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
-		double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));
-		caf.gastpc_RecoProMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
-		caf.gastpc_RecoProMomX = caf.gastpc_RecoProMomZ * tan(reco_tx*0.001); 
-		caf.gastpc_RecoProMomY = caf.gastpc_RecoProMomZ * tan(reco_ty*0.001);
-		caf.Ev_reco -= 0.1395; // Remove pion mass
-		caf.gastpc_pro_mult++;
-	      } // pion mis-ID'd as a proton
+	      // If very high energy and pi plus, there is a chance to reco as a proton
+	      if (preco > 1.5 && fsPdg[i]==211) {
+		// Energy reconstruction for particles in the ECAL
+		double keTrue = sqrt(ptrue*ptrue + mass*mass) - mass;
+		double keCalReco = keTrue * (1.+rando->Gaus(0., 0.2)+rando->Gaus(0., 0.3)/sqrt(keTrue));
+		// Check if energy from momentum reco is closer to proton or pion expectation
+		double eIfPi  = sqrt(preco*preco + 0.1395*0.1395) - 0.1395;
+		double eIfPro = sqrt(preco*preco + 0.9383*0.9383) - 0.9383;
+		// Is reco'd as a pion
+		if (abs(eIfPi-keCalReco) < abs(eIfPro-keCalReco)) {
+		  piRecoE.push_back(ereco+0.1395);
+		  caf.gastpc_pi_pl_mult++;
+		}
+		else {
+		  caf.Ev_reco -= 0.1395; // Remove pion mass
+		  caf.gastpc_pro_mult++;
+		} // pion mis-ID'd as a proton
+	      } // Very high energy pion
 	      else {
 		if (preco > highestMipMom && rando->Rndm() < 1/(e*e*e)) {
 		  if (highestMipMom > 0.) {
@@ -665,7 +650,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 		  // angle reconstruction
 		  double true_tx = 1000.*atan(fsPx[i] / fsPz[i]);
 		  double true_ty = 1000.*atan(fsPy[i] / fsPz[i]);
-		  double evalTsmear = tsmear->Eval(caf.Elep_reco - mmu);
+		  double evalTsmear = tsmear->Eval(ereco);
 		  if( evalTsmear < 0. ) evalTsmear = 0.;
 		  double reco_tx = true_tx + rando->Gaus(0., evalTsmear/sqrt(2.));
 		  double reco_ty = true_ty + rando->Gaus(0., evalTsmear/sqrt(2.));

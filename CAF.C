@@ -92,17 +92,10 @@ CAF::CAF( std::string filename, bool isGas )
     cafMVA->Branch( "gastpc_other_had_mult", &gastpc_other_had_mult, "gastpc_other_had_mult/I" );
     cafMVA->Branch( "gastpc_lead_pi_E", &gastpc_lead_pi_E, "gastpc_lead_pi_E/D" );
     cafMVA->Branch( "gastpc_sublead_pi_E", &gastpc_sublead_pi_E, "gastpc_sublead_pi_E/D" );
-    // Proton momentum (if available) for transverse momentum imbalance
-    cafMVA->Branch( "gastpc_ProMomX", &gastpc_ProMomX, "gastpc_ProMomX/D" );
-    cafMVA->Branch( "gastpc_ProMomY", &gastpc_ProMomY, "gastpc_ProMomY/D" );
-    cafMVA->Branch( "gastpc_ProMomZ", &gastpc_ProMomZ, "gastpc_ProMomZ/D" );
     cafMVA->Branch( "gastpc_nRecoFS", &gastpc_nRecoFS, "gastpc_nRecoFS/I" );
     cafMVA->Branch( "gastpc_RecoLepMomX", &gastpc_RecoLepMomX, "gastpc_RecoLepMomX/D" );
     cafMVA->Branch( "gastpc_RecoLepMomY", &gastpc_RecoLepMomY, "gastpc_RecoLepMomY/D" );
     cafMVA->Branch( "gastpc_RecoLepMomZ", &gastpc_RecoLepMomZ, "gastpc_RecoLepMomZ/D" );
-    cafMVA->Branch( "gastpc_RecoProMomX", &gastpc_RecoProMomX, "gastpc_RecoProMomX/D" );
-    cafMVA->Branch( "gastpc_RecoProMomY", &gastpc_RecoProMomY, "gastpc_RecoProMomY/D" );
-    cafMVA->Branch( "gastpc_RecoProMomZ", &gastpc_RecoProMomZ, "gastpc_RecoProMomZ/D" );
   }
 
   genie->Branch( "genie_record", &mcrec );
@@ -179,12 +172,6 @@ void CAF::setToBS()
   gastpc_other_had_mult = 0;
   gastpc_lead_pi_E = 0; 
   gastpc_sublead_pi_E = 0; 
-  gastpc_ProMomX = 0;
-  gastpc_ProMomY = 0;
-  gastpc_ProMomZ = 0;
-  gastpc_RecoProMomX = 0;
-  gastpc_RecoProMomY = 0;
-  gastpc_RecoProMomZ = 0;
   gastpc_RecoLepMomX = 0;
   gastpc_RecoLepMomY = 0;
   gastpc_RecoLepMomZ = 0;
