@@ -36,15 +36,15 @@ RNDSEED=$((${PROCESS}+${FIRST}))
 
 GEOMETRY="lar_mpt"
 
-OUTFLAG="LAr"
+OUTFLAG="GAr"
 
 RDIR=0$((${RNDSEED} / 1000))
 
 USERDIR="/pnfs/dune/persistent/users/marshalc/CAF"
-INDIR="/pnfs/dune/persistent/users/marshalc/CAF/genieNewFluxv2/${OUTFLAG}/${HORN}/${RDIR}"
-DUMPDIR="/pnfs/dune/persistent/users/marshalc/CAF/dumpv5"
-CAFDIR="/pnfs/dune/persistent/users/marshalc/CAF/CAFv5"
-STUFF="/pnfs/dune/persistent/users/marshalc/CAF/DUNE_ND_CAF.tar.gz"
+INDIR="/pnfs/dune/persistent/users/sbjones/CAF/genie/${OUTFLAG}/${HORN}/${RDIR}"
+DUMPDIR="/pnfs/dune/persistent/users/sbjones/CAF/dump"
+CAFDIR="/pnfs/dune/persistent/users/sbjones/CAF/outCAFs/v10"
+STUFF="/pnfs/dune/persistent/users/sbjones/CAF/DUNE_ND_CAF.tar.gz"
 
 
 ##################################################
@@ -102,7 +102,7 @@ echo "There are ${NPER} events"
 
 ## Run edep-sim
 ls
-echo "edep-sim -C -g ${GEOMETRY}.gdml -o ${PWD}/output_file.root -u -e ${NPER} dune-nd.mac"
+echo "edep-sim -C -g ${GEOMETRY}.gdml -o ${PWD}/edep.${RNDSEED}.root -u -e ${NPER} dune-nd.mac"
 edep-sim \
     -C \
     -g ${GEOMETRY}.gdml \
