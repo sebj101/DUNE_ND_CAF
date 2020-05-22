@@ -573,7 +573,11 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 	      caf.gastpc_RecoLepMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
 	      caf.gastpc_RecoLepMomX = caf.gastpc_RecoLepMomZ * tan(reco_tx*0.001); 
 	      caf.gastpc_RecoLepMomY = caf.gastpc_RecoLepMomZ * tan(reco_ty*0.001);
-	      if (fsTrkLen[i] > 100.) {
+	      // To reco as numu CC require track length perpendicular to B field > 1m 
+	      // or muon exits and ranges out in ECAL
+	      bool muonExits = (muonExitPt[2] > 0.) ? true : false;
+	      double muonMom = sqrt( muonExitMom[0]*muonExitMom[0] + muonExitMom[1]*muonExitMom[1] + muonExitMom[2]*muonExitMom[2] );
+	      if (fsTrkLenPerp[i] > 100. || (muonExits && muonMom < 380.)) { // Reco as numu CC
 		// assume perfect charge reconstruction
 		caf.reco_q = (fsPdg[i] > 0 ? -1 : 1);
 		caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
@@ -607,7 +611,7 @@ void loop( CAF &caf, params &par, TTree * tree, std::string ghepdir, std::string
 		caf.gastpc_RecoLepMomZ = preco / (sqrt(tan(reco_tx*0.001)*tan(reco_tx*0.001)+tan(reco_ty*0.001)*tan(reco_ty*0.001)+1));
 		caf.gastpc_RecoLepMomX = caf.gastpc_RecoLepMomZ * tan(reco_tx*0.001); 
 		caf.gastpc_RecoLepMomY = caf.gastpc_RecoLepMomZ * tan(reco_ty*0.001);
-		if (fsTrkLen[i] > 100.) {
+		if (fsTrkLenPerp[i] > 100.) {
 		  // assume perfect charge reconstruction
 		  caf.reco_q = ((fsPdg[i]==13 || fsPdg[i]==-211) > 0 ? -1 : 1);
 		  caf.reco_numu=1; caf.reco_nue=0; caf.reco_nc=0;
