@@ -84,8 +84,8 @@ ${CP} ${STUFF} DUNE_ND_CAF.tar.gz
 tar xzf DUNE_ND_CAF.tar.gz
 mv DUNE_ND_CAF/* .
 
-#${CP} ${USERDIR}/edep-sim.tar.gz ${PWD}/edep-sim.tar.gz
-#tar -xzf edep-sim.tar.gz
+${CP} ${USERDIR}/edep-sim.tar.gz ${PWD}/edep-sim.tar.gz
+tar -xzf edep-sim.tar.gz
 
 export LD_LIBRARY_PATH=${PWD}/edep-sim/edep-gcc-6.4.0-x86_64-pc-linux-gnu/lib:${LD_LIBRARY_PATH}
 export PATH=${PWD}/edep-sim/edep-gcc-6.4.0-x86_64-pc-linux-gnu/bin:${PATH}
@@ -132,13 +132,13 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PWD}/nusystematics/build/Linux/lib:$
 
 ## Run dumpTree
 echo "Running dumpTree.py..."
-echo "python dumpTree.py --topdir ${PWD} --first_run ${RNDSEED} --last_run ${RNDSEED} ${RHC} --grid --outfile dump.root"
-python dumpTree.py --topdir ${PWD} --first_run ${RNDSEED} --last_run ${RNDSEED} ${RHC} --grid --outfile dump.root
+echo "python dumpTree_gas.py --topdir ${PWD} --first_run ${RNDSEED} --last_run ${RNDSEED} ${RHC} --grid --outfile dump.root"
+python dumpTree_gas.py --topdir ${PWD} --first_run ${RNDSEED} --last_run ${RNDSEED} ${RHC} --grid --outfile dump.root
 
 ## Run makeCAF
 echo "Running makeCAF..."
-echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${RNDSEED} --grid ${RHC}"
-./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl ./fhicl.fcl --seed ${RNDSEED} ${RHC} --grid
+echo "./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl fhicl.fcl --seed ${RNDSEED} ${RHC} --grid --gastpc"
+./makeCAF --edepfile dump.root --ghepdir ${PWD} --outfile CAF.root --fhicl ./fhicl.fcl --seed ${RNDSEED} ${RHC} --grid --gastpc
 
 ## copy outputs
 echo "Copying outputs..."
